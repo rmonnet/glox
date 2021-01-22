@@ -7,14 +7,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+
+	"gitlab.com/rcmonnet/glox/lang"
 )
 
 const (
 	exDataErr = 65
 )
-
-// hadError records if an error was encountered earlier.
-var hadError bool
 
 // RunFile runs the lox interpreter on the
 // script in the file
@@ -26,7 +25,7 @@ func RunFile(filename string) {
 		os.Exit(exDataErr)
 	}
 	run(string(script))
-	if hadError {
+	if lang.HadError {
 		os.Exit(exDataErr)
 	}
 }
@@ -42,7 +41,10 @@ func RunPrompt() {
 			break
 		}
 		run(scanner.Text())
-		hadError = false
+		if lang.HadError {
+			os.Exit(exDataErr)
+		}
+		lang.HadError = false
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -56,17 +58,10 @@ func RunPrompt() {
 // program.
 func run(script string) {
 
-	fmt.Println(script)
-}
+	scanner := lang.NewScanner(script)
+	tokens := scanner.ScanTokens()
 
-// error raises an error during interpretation.
-func raise(line int, message string) {
-	report(line, "", message)
-}
-
-// report reports an error during interpretation
-func report(line int, where, message string) {
-	fmt.Fprintf(os.Stderr, "[line %d] Error%s: %s",
-		line, where, message)
-	hadError = true
+	for _, token := range tokens {
+		fmt.Println(token)
+	}
 }
