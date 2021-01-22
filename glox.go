@@ -1,10 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"io/ioutil"
 	"os"
+
+	"gitlab.com/rcmonnet/glox/interp"
 )
 
 const (
@@ -23,47 +23,8 @@ func main() {
 		fmt.Println("Usage glox [script]")
 		os.Exit(exUsage)
 	} else if len(os.Args) == 2 {
-		runFile(os.Args[1])
+		interp.RunFile(os.Args[1])
 	} else {
-		runPrompt()
+		interp.RunPrompt()
 	}
-}
-
-// runFile runs the lox interpreter on the
-// script in the file
-func runFile(filename string) {
-
-	script, err := ioutil.ReadFile(filename)
-	if err != nil {
-		fmt.Println("unable to read ", filename)
-		os.Exit(exDataErr)
-	}
-	run(string(script))
-}
-
-// runPrompt runs the lox interpreter interactively
-func runPrompt() {
-
-	scanner := bufio.NewScanner(os.Stdin)
-	for {
-		fmt.Print("> ")
-		if !scanner.Scan() {
-			fmt.Println("")
-			break
-		}
-		run(scanner.Text())
-	}
-
-	if err := scanner.Err(); err != nil {
-		fmt.Println("error while reading ", err)
-		os.Exit(exDataErr)
-	}
-
-}
-
-// run runs the lox interpreter on the provided
-// program.
-func run(script string) {
-
-	fmt.Println(script)
 }
