@@ -1,12 +1,11 @@
 package lang
 
-func ExampleExpr() {
+func ExamplePrettyPrint() {
 
-	p := AstPrinter{}
-	e := Binary{
+	e := &BinaryExpr{
 		&Token{Star, "*", "", 1},
-		&Unary{&Token{Minus, "-", "", 1}, &Literal{NumberType, 123}},
-		&Grouping{&Literal{NumberType, 45.67}}}
-	e.AcceptExpr(p)
+		&UnaryExpr{&Token{Minus, "-", "", 1}, &NumberLit{123}},
+		&GroupingExpr{&NumberLit{45.67}}}
+	PrettyPrint(e)
 	// Output: (* (-123) (group 45.67))
 }
