@@ -111,3 +111,90 @@ func NewToken(tokenType TokenType, lexeme, literal string, line int) *Token {
 func (t *Token) String() string {
 	return fmt.Sprintf("%d  %s  %v", t.Type, t.Lexeme, t.Literal)
 }
+
+// String return the string representation of a TokenType
+func (t TokenType) String() string {
+
+	switch t {
+	case LeftParen:
+		return "("
+	case RightParen:
+		return ")"
+	case LeftBrace:
+		return "{"
+	case RightBrace:
+		return "}"
+	case Comma:
+		return ","
+	case Dot:
+		return "."
+	case Minus:
+		return "-"
+	case Plus:
+		return "+"
+	case Semicolon:
+		return ";"
+	case Slash:
+		return "/"
+	case Star:
+		return "*"
+	case Bang:
+		return "!"
+	case BangEqual:
+		return "!="
+	case Equal:
+		return "="
+	case EqualEqual:
+		return "=="
+	case Greater:
+		return ">"
+	case GreaterEqual:
+		return ">="
+	case Less:
+		return "<"
+	case LessEqual:
+		return "<="
+	case Identifier:
+		return "identifier"
+	case String:
+		return "string"
+	case Number:
+		return "number"
+	case And:
+		return "and"
+	case Class:
+		return "class"
+	case Else:
+		return "else"
+	case False:
+		return "false"
+	case Fun:
+		return "fun"
+	case For:
+		return "for"
+	case If:
+		return "if"
+	case Nil:
+		return "nil"
+	case Or:
+		return "or"
+	case Print:
+		return "print"
+	case Return:
+		return "return"
+	case Super:
+		return "super"
+	case This:
+		return "this"
+	case True:
+		return "true"
+	case Var:
+		return "var"
+	case While:
+		return "while"
+	case End:
+		return "end"
+	default:
+		return "N/A"
+	}
+}
