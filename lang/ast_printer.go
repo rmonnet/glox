@@ -7,14 +7,8 @@ import "fmt"
 func PrettyPrint(e Expr) {
 
 	switch n := e.(type) {
-	case *StringLit:
-		fmt.Printf("%q", n.Value)
-	case *NumberLit:
-		fmt.Printf("%v", n.Value)
-	case *BooleanLit:
-		fmt.Printf("%v", n.Value)
-	case *NilLit:
-		fmt.Print("nil")
+	case *Lit:
+		fmt.Printf("%#v", n.Value)
 	case *GroupingExpr:
 		fmt.Print("(group ")
 		PrettyPrint(n.Expression)

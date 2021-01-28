@@ -118,20 +118,20 @@ func (p *Parser) unary() Expr {
 func (p *Parser) primary() Expr {
 
 	if p.match(False) {
-		return &BooleanLit{false}
+		return &Lit{false}
 	}
 	if p.match(True) {
-		return &BooleanLit{true}
+		return &Lit{true}
 	}
 	if p.match(Nil) {
-		return &NilLit{}
+		return &Lit{}
 	}
 	if p.match(Number) {
 		n, _ := strconv.ParseFloat(p.previous().Lexeme, 64)
 		// TODO: deal with the error in ParseFloat
 		// theoretically, there should be no error since
 		// we match the token to a float
-		return &NumberLit{n}
+		return &Lit{n}
 	}
 	if p.match(String) {
 		// technically we should remove just a single
@@ -139,7 +139,7 @@ func (p *Parser) primary() Expr {
 		// but the lox grammar guarantees there is only
 		// a single quote at the beginning and end
 		s := strings.Trim(p.previous().Lexeme, "\"")
-		return &StringLit{s}
+		return &Lit{s}
 	}
 	if p.match(LeftParen) {
 		expr := p.expression()

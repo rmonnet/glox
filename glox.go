@@ -8,8 +8,7 @@ import (
 )
 
 const (
-	exUsage   = 64
-	exDataErr = 65
+	exUsage = 64
 )
 
 // main runs the glox interpreter command line
