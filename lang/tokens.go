@@ -92,24 +92,12 @@ const (
 type Token struct {
 	Type   TokenType
 	Lexeme string
-	// TODO: do we need to store the literal?
-	Literal string
-	Line    int
-}
-
-// NewToken creates a new token.
-func NewToken(tokenType TokenType, lexeme, literal string, line int) *Token {
-	t := new(Token)
-	t.Type = tokenType
-	t.Lexeme = lexeme
-	t.Literal = literal
-	t.Line = line
-	return t
+	Line   int
 }
 
 // String returns the string representation of a Token
 func (t *Token) String() string {
-	return fmt.Sprintf("%d  %s  %v", t.Type, t.Lexeme, t.Literal)
+	return fmt.Sprintf("%d %s", t.Type, t.Lexeme)
 }
 
 // String return the string representation of a TokenType

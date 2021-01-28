@@ -61,7 +61,17 @@ func run(script string) {
 	scanner := lang.NewScanner(script)
 	tokens := scanner.ScanTokens()
 
+	// for debugging only
 	for _, token := range tokens {
 		fmt.Println(token)
 	}
+
+	parser := lang.NewParser(tokens)
+	expr := parser.Parse()
+
+	if lang.HadError {
+		return
+	}
+	lang.PrettyPrint(expr)
+	fmt.Println("")
 }

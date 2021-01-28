@@ -28,7 +28,7 @@ func (s *Scanner) ScanTokens() []*Token {
 		s.scanToken()
 	}
 
-	s.tokens = append(s.tokens, NewToken(End, "", "", s.line))
+	s.tokens = append(s.tokens, &Token{End, "", s.line})
 	return s.tokens
 }
 
@@ -128,9 +128,7 @@ func (s *Scanner) string() {
 	// need to consume the closing quote
 	s.advance()
 
-	// trim the surrounding quotes
-	value := string(s.source[s.start+1 : s.current-1])
-	s.addTokenWithLiteral(String, value)
+	s.addToken(String)
 }
 
 // number consumes a number token from the source.
@@ -151,8 +149,7 @@ func (s *Scanner) number() {
 		s.advance()
 	}
 
-	text := string(s.source[s.start:s.current])
-	s.addTokenWithLiteral(Number, text)
+	s.addToken(Number)
 }
 
 // identifier consumes an identifier token from the source.
@@ -247,14 +244,7 @@ func (s *Scanner) peekNext() rune {
 func (s *Scanner) addToken(tokenType TokenType) {
 
 	text := string(s.source[s.start:s.current])
-	s.tokens = append(s.tokens, NewToken(tokenType, text, "", s.line))
-}
-
-// addTokenWithLiteral adds a token with a literal to the Scanner result
-func (s *Scanner) addTokenWithLiteral(tokenType TokenType, literal string) {
-
-	text := string(s.source[s.start:s.current])
-	s.tokens = append(s.tokens, NewToken(tokenType, text, literal, s.line))
+	s.tokens = append(s.tokens, &Token{tokenType, text, s.line})
 }
 
 // keywords is a map including all lox reserved keywords

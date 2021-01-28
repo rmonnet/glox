@@ -2,14 +2,17 @@
 
 The Lox grammar is defined below:
 
-```
-expression = literal | unary | binary | grouping ;
-literal = NUMBER | STRING | BOOLEAN | NIL;
-grouping = "(" expression ")" ;
-unary = ( "-" | "!" ) expression ;
-binary = expression operator expression ;
-operator = "=" | "!=" | "<" | "<=" | ">" | ">="
-    | "+" | "-" | "*" | "/" ;
+```BNF
+expression = equality ;
+equality = comparison ( ("!=" | "==" ) comparison )* ;
+comparison = term ( (">" | ">=" | "<" | "<=" ) term )* ;
+term = factor ( ( "-" | "+" ) factor )* ;
+factor = unary ( ( "/" | "*" ) unary )* ;
+unary = ( "!" | "-" ) unary
+    | primary ;
+primary = NUMBER | STRING | BOOLEAN | NIL
+    | "(" expression ")" ;
+
 NUMBER = [0-9]+ ( "." [0-9]+ )?
 STRING = "\"" ( . )* "\""
 BOOLEAN = "true" | "false"

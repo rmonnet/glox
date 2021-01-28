@@ -26,8 +26,8 @@ type NilLit struct {
 
 // BinaryExpr represents a binary expression in loc AST
 type BinaryExpr struct {
-	Operator        *Token
 	LeftExpression  Expr
+	Operator        *Token
 	RightExpression Expr
 }
 

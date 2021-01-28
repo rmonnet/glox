@@ -32,5 +32,7 @@ func PrettyPrint(e Expr) {
 		fmt.Print(" ")
 		PrettyPrint(n.RightExpression)
 		fmt.Print(")")
+	default:
+		panic(fmt.Sprintf("Unknown Expression Type: %T", e))
 	}
 }
