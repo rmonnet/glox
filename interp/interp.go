@@ -3,115 +3,138 @@
 package interp
 
 import (
-	"bufio"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"reflect"
 
 	"gitlab.com/rcmonnet/glox/lang"
 )
 
-const (
-	exDataErr = 65
-	exSwErr   = 70
-)
-
-// hadRuntimeError indicates an error occurred while
-// interpreting the lox script.
-var hadRuntimeError bool
-
-// RuntimeError represents an error encountered during
-// RUntime interpretation.
-type RuntimeError struct {
-	token   *lang.Token
-	message string
+// Interp represents the state of the lox interpreter.
+type Interp struct {
+	hadCompileError bool
+	hadRuntimeError bool
+	env             *env
 }
 
-// Error extracts the Error Message out of a RuntimeError.
-func (e RuntimeError) Error() string {
-	return e.message
+// New creates a new interpreter.
+func New() *Interp {
+
+	interp := &Interp{}
+	interp.env = newEnv(nil)
+	return interp
 }
 
-// RunFile runs the lox interpreter on the
-// script in the file
-func RunFile(filename string) {
-
-	script, err := ioutil.ReadFile(filename)
-	if err != nil {
-		fmt.Println("unable to read ", filename)
-		os.Exit(exDataErr)
-	}
-	run(string(script))
-	if lang.HadError {
-		os.Exit(exDataErr)
-	}
-	if hadRuntimeError {
-		os.Exit(exSwErr)
-	}
-}
-
-// RunPrompt runs the lox interpreter interactively
-func RunPrompt() {
-
-	scanner := bufio.NewScanner(os.Stdin)
-	for {
-		fmt.Print("> ")
-		if !scanner.Scan() {
-			fmt.Println("")
-			break
-		}
-		run(scanner.Text())
-		lang.HadError = false
-		hadRuntimeError = false
-	}
-
-	if err := scanner.Err(); err != nil {
-		fmt.Println("error while reading ", err)
-		os.Exit(exDataErr)
-	}
-
-}
-
-// run runs the lox interpreter on the provided
+// Run runs the lox interpreter on the provided
 // program.
-func run(script string) {
+func (i *Interp) Run(script string) {
 
 	scanner := lang.NewScanner(script)
 	tokens := scanner.ScanTokens()
 
-	// for debugging only
-	for _, token := range tokens {
-		fmt.Println(token)
-	}
-
 	parser := lang.NewParser(tokens)
-	expr := parser.Parse()
+	statements := parser.Parse()
 
-	if lang.HadError {
+	if scanner.HadError() || parser.HadError() {
+		i.hadCompileError = true
 		return
 	}
 
-	// for debugging only
-	lang.PrettyPrint(expr)
-	fmt.Println("")
+	i.interpret(statements)
+}
 
-	// TODO: we will need an interpreter object
-	// to store state
-	interpret(expr)
+// HadCompileError indicates if errors occurred during
+// compilation.
+func (i *Interp) HadCompileError() bool {
+
+	return i.hadCompileError
+}
+
+// HadRuntimeError indicates if errors occurred during
+// compilation.
+func (i *Interp) HadRuntimeError() bool {
+
+	return i.hadRuntimeError
+}
+
+// runtimeError represents an error encountered during
+// Runtime interpretation.
+type runtimeError struct {
+	token   *lang.Token
+	message string
+}
+
+// Error extracts the Error Message out of a runtimeError.
+func (e runtimeError) Error() string {
+	return e.message
 }
 
 // interpret evaluates the expression and display the result.
-func interpret(e lang.Expr) {
+func (i *Interp) interpret(statements []lang.Stmt) {
 	defer func() {
 		if e := recover(); e != nil {
-			rte := e.(RuntimeError)
+			rte := e.(runtimeError)
 			fmt.Printf("%s\n[line %d]\n", rte.message, rte.token.Line)
-			hadRuntimeError = true
+			i.hadRuntimeError = true
 		}
 	}()
-	val := evaluate(e)
+	for _, stmt := range statements {
+		i.execute(stmt)
+	}
+}
+
+// execute executes a statement.
+func (i *Interp) execute(stmt lang.Stmt) {
+
+	switch s := stmt.(type) {
+	case *lang.PrintStmt:
+		i.executePrintStmt(s)
+	case *lang.ExprStmt:
+		i.executeExprStmt(s)
+	case *lang.VarDeclStmt:
+		i.executeValDeclStmt(s)
+	case *lang.BlockStmt:
+		i.executeBlockStmt(s)
+	default:
+		panic(fmt.Sprintf("Unknown Statement Type: %T", s))
+	}
+}
+
+// executeBlockStmt executes a block statement.
+func (i *Interp) executeBlockStmt(block *lang.BlockStmt) {
+
+	previousEnv := i.env
+	// ensure that the previous environment is restored
+	// no matter what happens.
+	defer func() {
+		i.env = previousEnv
+	}()
+	i.env = newEnv(previousEnv)
+	for _, s := range block.Statements {
+		i.execute(s)
+	}
+}
+
+// executeExprstmt executes an expression statement.
+func (i *Interp) executeExprStmt(stmt *lang.ExprStmt) {
+
+	i.evaluate(stmt.Expression)
+}
+
+// executePrintStmt executes a print statement.
+func (i *Interp) executePrintStmt(stmt *lang.PrintStmt) {
+
+	val := i.evaluate(stmt.Expression)
 	fmt.Println(stringify(val))
+}
+
+func (i *Interp) executeValDeclStmt(stmt *lang.VarDeclStmt) {
+
+	var val interface{}
+	if stmt.Initializer != nil {
+		val = i.evaluate(stmt.Initializer)
+	}
+
+	i.env.define(stmt.Name.Lexeme, val)
 }
 
 // stringify returns a valid lox string representation
@@ -129,27 +152,40 @@ func stringify(lit interface{}) string {
 
 // evaluate evaluates an expression and returns the result
 // as a literal
-func evaluate(e lang.Expr) interface{} {
+func (i *Interp) evaluate(e lang.Expr) interface{} {
 
 	switch n := e.(type) {
 	case *lang.Lit:
 		return n.Value
 	case *lang.GroupingExpr:
-		return evaluate(n.Expression)
+		return i.evaluate(n.Expression)
 	case *lang.UnaryExpr:
-		return evaluateUnary(n)
+		return i.evaluateUnary(n)
 	case *lang.BinaryExpr:
-		return evaluateBinary(n)
+		return i.evaluateBinary(n)
+	case *lang.VarExpr:
+		return i.env.get(n.Name)
+	case *lang.AssignExpr:
+		return i.evaluateAssign(n)
 	default:
 		panic(fmt.Sprintf("Unknown Expression Type: %T", e))
 	}
 }
 
+// evaluateAssign evaluates an Assignment expression and returns
+// the result as a literal
+func (i *Interp) evaluateAssign(a *lang.AssignExpr) interface{} {
+
+	value := i.evaluate(a.Value)
+	i.env.assign(a.Name, value)
+	return value
+}
+
 // evaluateUnary evaluates a Unary expression and returns
 // the result as a literal
-func evaluateUnary(u *lang.UnaryExpr) interface{} {
+func (i *Interp) evaluateUnary(u *lang.UnaryExpr) interface{} {
 
-	right := evaluate(u.Expression)
+	right := i.evaluate(u.Expression)
 	switch u.Operator.Type {
 	case lang.Minus:
 		val := operandToNumber(u.Operator, right)
@@ -160,10 +196,10 @@ func evaluateUnary(u *lang.UnaryExpr) interface{} {
 	return nil
 }
 
-func evaluateBinary(b *lang.BinaryExpr) interface{} {
+func (i *Interp) evaluateBinary(b *lang.BinaryExpr) interface{} {
 
-	left := evaluate(b.LeftExpression)
-	right := evaluate(b.RightExpression)
+	left := i.evaluate(b.LeftExpression)
+	right := i.evaluate(b.RightExpression)
 
 	switch b.Operator.Type {
 	case lang.Minus:
@@ -184,10 +220,13 @@ func evaluateBinary(b *lang.BinaryExpr) interface{} {
 		if leftVal.Kind() == reflect.Float64 && rightVal.Kind() == reflect.Float64 {
 			return leftVal.Float() + rightVal.Float()
 		}
-		if leftVal.Kind() == reflect.String && rightVal.Kind() == reflect.String {
-			return leftVal.String() + rightVal.String()
+		// to make it easier to debug,
+		// when used for string concatenation, "+" supports
+		// implicit conversion to string
+		if leftVal.Kind() == reflect.String || rightVal.Kind() == reflect.String {
+			return valueToString(leftVal) + valueToString(rightVal)
 		}
-		panic(RuntimeError{b.Operator,
+		panic(runtimeError{b.Operator,
 			"Operands must be two numbers or two strings."})
 	case lang.Greater:
 		leftVal, rightVal := operandsToNumbers(
@@ -241,7 +280,7 @@ func operandToNumber(operator *lang.Token,
 
 	val, ok := operand.(float64)
 	if !ok {
-		panic(RuntimeError{operator, "Operand must be a number."})
+		panic(runtimeError{operator, "Operand must be a number."})
 	}
 	return val
 }
@@ -254,7 +293,27 @@ func operandsToNumbers(operator *lang.Token,
 	leftVal, leftOk := left.(float64)
 	rightVal, rightOk := right.(float64)
 	if !leftOk || !rightOk {
-		panic(RuntimeError{operator, "Operands must be numbers."})
+		panic(runtimeError{operator, "Operands must be numbers."})
 	}
 	return leftVal, rightVal
+}
+
+// valueToString converts any of the lox primitive types
+// to a string. It is used for implicit conversion to
+// string for the "+" operator.
+func valueToString(value reflect.Value) string {
+
+	kind := value.Kind()
+	switch {
+	case kind == reflect.String:
+		return value.String()
+	case kind == reflect.Float64:
+		return fmt.Sprintf("%v", value.Float())
+	case kind == reflect.Bool:
+		return fmt.Sprintf("%v", value.Bool())
+	case !value.IsValid():
+		return "nil"
+	default:
+		panic(fmt.Sprintf("Unexpected primitive type %s, %v", kind, value))
+	}
 }

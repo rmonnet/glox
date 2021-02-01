@@ -1,0 +1,13 @@
+// this is a comment
+print true;
+print ! true;
+print 3 < 5;
+print 3 <= 5;
+print 3 > 5;
+print 3 >= 5;
+print 3 == 5;
+print 3 != 5;
+print 3 * 7 + 2 / (4 -1);
+print 3 * (2 + 5);
+print -3;
+print "ab" + "cd";

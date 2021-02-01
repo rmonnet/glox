@@ -1,12 +1,18 @@
 package lang
 
+import (
+	"fmt"
+	"os"
+)
+
 // Scanner represents a lox scanner
 type Scanner struct {
-	source  []rune
-	tokens  []*Token
-	start   int
-	current int
-	line    int
+	source   []rune
+	tokens   []*Token
+	start    int
+	current  int
+	line     int
+	hadError bool
 }
 
 // NewScanner initialize a new lox scanner.
@@ -15,7 +21,6 @@ func NewScanner(source string) *Scanner {
 	s := new(Scanner)
 	s.source = []rune(source)
 	s.line = 1
-	// TODO: consider pre-allocating some room in the token array
 	return s
 }
 
@@ -32,6 +37,14 @@ func (s *Scanner) ScanTokens() []*Token {
 	return s.tokens
 }
 
+// HadError reports if some errors were encountered during
+// scanning. It should be called after ScanTokens before using
+// the result.
+func (s *Scanner) HadError() bool {
+
+	return s.hadError
+}
+
 func (s *Scanner) scanToken() {
 
 	c := s.advance()
@@ -41,9 +54,9 @@ func (s *Scanner) scanToken() {
 	case ')':
 		s.addToken(RightParen)
 	case '{':
-		s.addToken(RightBrace)
-	case '}':
 		s.addToken(LeftBrace)
+	case '}':
+		s.addToken(RightBrace)
 	case ',':
 		s.addToken(Comma)
 	case '.':
@@ -101,7 +114,7 @@ func (s *Scanner) scanToken() {
 		} else if isAlpha(c) {
 			s.identifier()
 		} else {
-			Raise(s.line, "Unexpected character.")
+			s.reportError("Unexpected character.")
 			// TODO: it would be nicer to coalesce all the consecutive erroneous characters
 			// into a single error message
 		}
@@ -121,7 +134,7 @@ func (s *Scanner) string() {
 	}
 
 	if s.isAtEnd() {
-		Raise(s.line, "Unterminated string.")
+		s.reportError("Unterminated string.")
 		return
 	}
 
@@ -191,6 +204,14 @@ func isAlphaNumeric(c rune) bool {
 }
 
 // Helper functions
+
+// reportError reports an error during interpretation
+func (s *Scanner) reportError(message string) {
+
+	fmt.Fprintf(os.Stderr, "[line %d] Error: %s\n",
+		s.line, message)
+	s.hadError = true
+}
 
 // isAtEnd checks if the scanner has reached the end of the
 // source file.

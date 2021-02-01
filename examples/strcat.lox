@@ -1,0 +1,10 @@
+// check implicit conversions to string
+// for string concatenation
+print 1 + 2;
+print "ab" + "cd";
+print "float: " + 1;
+print "bool: " + true;
+print "bool: " + false;
+print "bool: " + (3 < 5);
+print 1 + " is a float";
+print "nil: " + nil;

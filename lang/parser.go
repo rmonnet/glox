@@ -2,18 +2,20 @@ package lang
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 )
 
-// ErrParser represents an error occuring in the
-// parser.
-var ErrParser = fmt.Errorf("parser error")
+// errParser is a marker for an error occuring in the
+// parser. It is used to trigger synchronization.
+var errParser = fmt.Errorf("parser error")
 
 // Parser represents a lox parser
 type Parser struct {
-	tokens  []*Token
-	current int
+	tokens   []*Token
+	current  int
+	hadError bool
 }
 
 // NewParser creates a lox parser, using the output
@@ -26,29 +28,131 @@ func NewParser(tokens []*Token) *Parser {
 }
 
 // Parse parses the stream of tokens into an AST.
-func (p *Parser) Parse() (expr Expr) {
+func (p *Parser) Parse() []Stmt {
 
-	// if an error is reported, need to resynchronize the stream
-	defer func() {
-		if e := recover(); e != nil {
-			if e != ErrParser {
-				panic(e)
-			}
-			// TODO: call synchronize
-			expr = nil
-		}
-	}()
+	var statements []Stmt
+	for !p.isAtEnd() {
+		statements = append(statements, p.declaration())
+	}
+	return statements
 
-	return p.expression()
+}
+
+// HadError reports if some errors were encountered during
+// the parsing phase. It should be checked before the
+// result is used.
+func (p *Parser) HadError() bool {
+
+	return p.hadError
 }
 
 // Parsing rules
 
+// declaration implements the rule for a lox declaration.
+// declaration = varDeclStmt | statement ;
+func (p *Parser) declaration() (statement Stmt) {
+
+	// if an error is reported while parsing a declaration
+	// or a statement, need to resynchronize the stream
+	defer func() {
+		if e := recover(); e != nil {
+			if e != errParser {
+				panic(e)
+			}
+			p.synchronize()
+			statement = nil
+		}
+	}()
+
+	if p.match(Var) {
+		return p.varDeclaration()
+	}
+	return p.statement()
+}
+
+// varDeclaration implements the rule for a lox variable declaration.
+// varDeclStmt = "var" IDENTIFIER ( "=" expression )? ";" ;
+func (p *Parser) varDeclaration() Stmt {
+
+	name := p.consume(Identifier, "Expect variable name.")
+	var initializer Expr
+	if p.match(Equal) {
+		initializer = p.expression()
+	}
+	p.consume(Semicolon, "Expect ';' after variable declaration.")
+	return &VarDeclStmt{name, initializer}
+
+}
+
+// statement implements the rule for a lox statement.
+// statement = printStmt | exprStmt | block ;
+func (p *Parser) statement() Stmt {
+
+	if p.match(Print) {
+		return p.printStatement()
+	}
+	if p.match(LeftBrace) {
+		return p.blockStatement()
+	}
+	return p.expressionStatement()
+
+}
+
+// blockStatement implements the rule for a lox block.
+// block = "{" declaration* "}" ;
+func (p *Parser) blockStatement() Stmt {
+
+	var statements []Stmt
+	for !p.check(RightBrace) && !p.isAtEnd() {
+		statements = append(statements, p.declaration())
+	}
+	p.consume(RightBrace, "Expect '}' after block.")
+	return &BlockStmt{statements}
+}
+
+// printStatement implements the rule for a lox PrintStmt.
+// printStmt = "print" expression ";" ;
+func (p *Parser) printStatement() Stmt {
+
+	expr := p.expression()
+	p.consume(Semicolon, "Expect ';' after value.")
+	return &PrintStmt{expr}
+}
+
+// expressionStatement implements the rule for a lox exprStmt
+// exprStmt = expression ";" ;
+func (p *Parser) expressionStatement() Stmt {
+
+	expr := p.expression()
+	p.consume(Semicolon, "Expect ';' after expression.")
+	return &ExprStmt{expr}
+}
+
 // expression implements the rule for a lox expression.
-// expression = equality ;
+// expression = assignment ;
 func (p *Parser) expression() Expr {
 
-	return p.equality()
+	return p.assignment()
+}
+
+// assignment implements the rule for a lox assignment expression.
+// assignment = IDENTIFIER "=" assignment | equality ;
+func (p *Parser) assignment() Expr {
+
+	// Because we may need an infinite look-ahead to find the "=" token
+	// we treat the left side as any expression and only
+	// check if it is an identifier when we find the "=" token.
+
+	expr := p.equality()
+	if p.match(Equal) {
+		equals := p.previous()
+		value := p.assignment()
+		if varExpr, ok := expr.(*VarExpr); ok {
+			return &AssignExpr{varExpr.Name, value}
+		}
+		p.reportError(equals, "Invalid assignment target.")
+	}
+	return expr
 }
 
 // equality implements the rule for a lox equality expression.
@@ -107,7 +211,7 @@ func (p *Parser) factor() Expr {
 // unary = ( "!" | "-" ) unary | primary ;
 func (p *Parser) unary() Expr {
 
-	if p.match(Bang, Equal) {
+	if p.match(Bang, Minus) {
 		op := p.previous()
 		right := p.unary()
 		return &UnaryExpr{op, right}
@@ -141,13 +245,16 @@ func (p *Parser) primary() Expr {
 		s := strings.Trim(p.previous().Lexeme, "\"")
 		return &Lit{s}
 	}
+	if p.match(Identifier) {
+		return &VarExpr{p.previous()}
+	}
 	if p.match(LeftParen) {
 		expr := p.expression()
 		p.consume(RightParen, "Expect ')' after expression.")
 		return &GroupingExpr{expr}
 	}
-	error(p.peek(), "Expect expression.")
-	panic(ErrParser)
+	p.reportError(p.peek(), "Expect expression.")
+	panic(errParser)
 }
 
 // Helper functions
@@ -173,8 +280,8 @@ func (p *Parser) consume(tokenType TokenType, msg string) *Token {
 		return p.advance()
 	}
 
-	error(p.peek(), msg)
-	panic(ErrParser)
+	p.reportError(p.peek(), msg)
+	panic(errParser)
 }
 
 // check returns true if the current token matches
@@ -217,7 +324,7 @@ func (p *Parser) previous() *Token {
 // synchronize search the parsing stream for the first
 // token after a semicolon. It is used to continue
 // parsing after an error is found and reported.
-func synchronize(p *Parser) {
+func (p *Parser) synchronize() {
 
 	p.advance()
 	for !p.isAtEnd() {
@@ -232,13 +339,17 @@ func synchronize(p *Parser) {
 	}
 }
 
-// error is triggered when a parser errors is encountered.
+// reportError is triggered when a parser errors is encountered.
 // the parser can then continue from that point.
-func error(token *Token, msg string) {
+func (p *Parser) reportError(token *Token, msg string) {
 
+	var where string
 	if token.Type == End {
-		report(token.Line, " at end", msg)
+		where = "at end"
 	} else {
-		report(token.Line, " at '"+token.Lexeme+"'", msg)
+		where = "at '" + token.Lexeme + "'"
 	}
+	fmt.Fprintf(os.Stderr, "[line %d] Error %s: %s\n",
+		token.Line, where, msg)
+	p.hadError = true
 }
