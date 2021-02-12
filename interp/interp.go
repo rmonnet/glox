@@ -90,12 +90,34 @@ func (i *Interp) execute(stmt lang.Stmt) {
 		i.executePrintStmt(s)
 	case *lang.ExprStmt:
 		i.executeExprStmt(s)
+	case *lang.IfStmt:
+		i.executeIfStmt(s)
+	case *lang.WhileStmt:
+		i.executeWhileStmt(s)
 	case *lang.VarDeclStmt:
 		i.executeValDeclStmt(s)
 	case *lang.BlockStmt:
 		i.executeBlockStmt(s)
 	default:
 		panic(fmt.Sprintf("Unknown Statement Type: %T", s))
+	}
+}
+
+// executeWhileStmt executes a while statement.
+func (i *Interp) executeWhileStmt(stmt *lang.WhileStmt) {
+
+	for isTruthy(i.evaluate(stmt.Condition)) {
+		i.execute(stmt.Body)
+	}
+}
+
+// executeIfStmt executes an if statement.
+func (i *Interp) executeIfStmt(stmt *lang.IfStmt) {
+
+	if isTruthy(i.evaluate(stmt.Condition)) {
+		i.execute(stmt.ThenBranch)
+	} else if stmt.ElseBranch != nil {
+		i.execute(stmt.ElseBranch)
 	}
 }
 
@@ -163,6 +185,8 @@ func (i *Interp) evaluate(e lang.Expr) interface{} {
 		return i.evaluateUnary(n)
 	case *lang.BinaryExpr:
 		return i.evaluateBinary(n)
+	case *lang.LogicalExpr:
+		return i.evaluateLogical(n)
 	case *lang.VarExpr:
 		return i.env.get(n.Name)
 	case *lang.AssignExpr:
@@ -170,6 +194,26 @@ func (i *Interp) evaluate(e lang.Expr) interface{} {
 	default:
 		panic(fmt.Sprintf("Unknown Expression Type: %T", e))
 	}
+}
+
+// evaluateLogical evaluates a Logical expression and return
+// the result as a literal
+func (i *Interp) evaluateLogical(l *lang.LogicalExpr) interface{} {
+
+	left := i.evaluate(l.LeftExpression)
+	if l.Operator.Type == lang.Or {
+		if isTruthy(left) {
+			return left
+		}
+	} else if l.Operator.Type == lang.And {
+		if !isTruthy(left) {
+			return left
+		}
+	} else {
+		panic(fmt.Sprintf("Unknown Logical Operator %v",
+			l.Operator))
+	}
+	return i.evaluate(l.RightExpression)
 }
 
 // evaluateAssign evaluates an Assignment expression and returns

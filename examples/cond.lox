@@ -1,0 +1,25 @@
+print "hi or 2 = " + ("hi" or 2);
+print "nil or yes = " + (nil or "yes");
+print "hi and 2 = " + ("hi" and 2);
+if ("hi") print "yes"; else print "no";
+if (nil or "hi") print "yes"; else print "no";
+if (nil and "hi") print "yes"; else print "no";
+if (nil and "hi") {
+    print "yes";
+} else {
+    print "no";
+}
+print "while loop:";
+var i = 0;
+while (i < 3) {
+    print i;
+    i = i + 1;
+}
+print "for loop:";
+var a = 0;
+var temp;
+for (var b = 1; a < 10; b = temp + b) {
+    print a;
+    temp = a;
+    a = b;
+}

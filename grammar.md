@@ -6,12 +6,20 @@ The Lox grammar is defined below:
 program = declaration* EOF ;
 declaration = varDeclStmt | statement ;
 varDeclStmt = "var" IDENTIFIER ( "=" expression )? ";" ;
-statement = printStmt | exprStmt | block ;
+statement = exprStmt | forStmt | ifStmt | printStmt
+    | whileStmt | block ;
 exprStmt = expression ";" ;
+forStmt = "for" "(" ( varDecl | exprStmt | ";" )
+    expression? ";" expression? ")" statement ;
+ifStmt = "if" "(" expression ")" statement 
+    ( "else" statement )? ;
 printStmt = "print" expression ";" ;
+whileStmt = "while" "(" expression ")" statement ;
 block = "{" declaration* "}" ;
 expression = assignment ;
-assignment = IDENTIFIER "=" assignment | equality ;
+assignment = IDENTIFIER "=" assignment | logic_or ;
+logic_or = logic_and ( "or" logic_and )* ;
+logic_and = equality ( "and" equality )* ;
 equality = comparison ( ("!=" | "==" ) comparison )* ;
 comparison = term ( (">" | ">=" | "<" | "<=" ) term )* ;
 term = factor ( ( "-" | "+" ) factor )* ;
@@ -33,6 +41,8 @@ Precedence rules (lowest to highest):
 | Name       | Operator  | Associate |
 | ---------- | --------- | --------- |
 | Assignment | =         | right     |
+| Or         | or        | left      |
+| And        | and       | left      |
 | Equality   | == !=     | left      |
 | Comparison | > >= < <= | left      |
 | Term       | - +       | left      |

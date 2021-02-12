@@ -88,14 +88,90 @@ func (p *Parser) varDeclaration() Stmt {
 // statement = printStmt | exprStmt | block ;
 func (p *Parser) statement() Stmt {
 
+	if p.match(For) {
+		return p.forStatement()
+	}
+	if p.match(If) {
+		return p.ifStatement()
+	}
 	if p.match(Print) {
 		return p.printStatement()
+	}
+	if p.match(While) {
+		return p.whileStatement()
 	}
 	if p.match(LeftBrace) {
 		return p.blockStatement()
 	}
 	return p.expressionStatement()
 
+}
+
+// forStatement implements the rule for a lox for loop.
+// forStmt = "for" "(" ( varDecl | exprStmt | ";" )
+//  	expression? ";" expression? ")" statement ;
+func (p *Parser) forStatement() Stmt {
+
+	p.consume(LeftParen, "Expect '(' after 'for'.")
+	var initializer Stmt
+	if p.match(Semicolon) {
+		// nothing to do
+	} else if p.match(Var) {
+		initializer = p.varDeclaration()
+	} else {
+		initializer = p.expressionStatement()
+	}
+	var condition Expr
+	if !p.check(Semicolon) {
+		condition = p.expression()
+	}
+	p.consume(Semicolon, "Expect ';' after loop condition.")
+	var increment Expr
+	if !p.check(RightParen) {
+		increment = p.expression()
+	}
+	p.consume(RightParen, "Expect ')' after for clauses.")
+	body := p.statement()
+
+	if increment != nil {
+		body = newBlockStmt(body, &ExprStmt{increment})
+	}
+	if condition != nil {
+		body = &WhileStmt{condition, body}
+	}
+	if initializer != nil {
+		body = newBlockStmt(initializer, body)
+	}
+	return body
+}
+
+// ifStatement implements the rule for a lox if.
+// ifStmt = "if" "(" expression ")" statement
+//    ( "else" statement )? ;
+func (p *Parser) ifStatement() Stmt {
+
+	p.consume(LeftParen, "Expect '(' after 'if'.")
+	condition := p.expression()
+	p.consume(RightParen, "Expect ')' after if condition.")
+	thenBranch := p.statement()
+	// note: for dangling else, the logic here will
+	// associate the 'else' with the closest 'if'
+	var elseBranch Stmt
+	if p.match(Else) {
+		elseBranch = p.statement()
+	}
+	return &IfStmt{condition, thenBranch, elseBranch}
+}
+
+// whileStatement implements the rule for a lox while.
+// whileStmt = "while" "(" expression ")" statement ;
+func (p *Parser) whileStatement() Stmt {
+
+	p.consume(LeftParen, "Expect '(' after 'while'.")
+	condition := p.expression()
+	p.consume(RightParen, "Expect ')' after while condition.")
+	body := p.statement()
+	return &WhileStmt{condition, body}
 }
 
 // blockStatement implements the rule for a lox block.
@@ -136,14 +212,14 @@ func (p *Parser) expression() Expr {
 }
 
 // assignment implements the rule for a lox assignment expression.
-// assignment = IDENTIFIER "=" assignment | equality ;
+// assignment = IDENTIFIER "=" assignment | logic_or ;
 func (p *Parser) assignment() Expr {
 
 	// Because we may need an infinite look-ahead to find the "=" token
 	// we treat the left side as any expression and only
 	// check if it is an identifier when we find the "=" token.
 
-	expr := p.equality()
+	expr := p.or()
 	if p.match(Equal) {
 		equals := p.previous()
 		value := p.assignment()
@@ -151,6 +227,32 @@ func (p *Parser) assignment() Expr {
 			return &AssignExpr{varExpr.Name, value}
 		}
 		p.reportError(equals, "Invalid assignment target.")
+	}
+	return expr
+}
+
+// or implements the rule for a lox logical or expression.
+// logic_or = logic_and ( "or" logic_and )* ;
+func (p *Parser) or() Expr {
+
+	expr := p.and()
+	for p.match(Or) {
+		op := p.previous()
+		right := p.and()
+		expr = &LogicalExpr{expr, op, right}
+	}
+	return expr
+}
+
+// and implements the rule for a lox logical and expression.
+// logic_and = equality ( "and" equality )* ;
+func (p *Parser) and() Expr {
+
+	expr := p.equality()
+	for p.match(And) {
+		op := p.previous()
+		right := p.equality()
+		expr = &LogicalExpr{expr, op, right}
 	}
 	return expr
 }
@@ -352,4 +454,11 @@ func (p *Parser) reportError(token *Token, msg string) {
 	fmt.Fprintf(os.Stderr, "[line %d] Error %s: %s\n",
 		token.Line, where, msg)
 	p.hadError = true
+}
+
+// newBlockStmt creates a block statement out of the
+// provided set of statements
+func newBlockStmt(statements ...Stmt) *BlockStmt {
+
+	return &BlockStmt{statements}
 }
