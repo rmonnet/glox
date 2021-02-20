@@ -25,7 +25,9 @@ comparison = term ( (">" | ">=" | "<" | "<=" ) term )* ;
 term = factor ( ( "-" | "+" ) factor )* ;
 factor = unary ( ( "/" | "*" ) unary )* ;
 unary = ( "!" | "-" ) unary
-    | primary ;
+    | call ;
+call = primary ( "(" arguments? ")" )* ;
+arguments = expression ( "," expression )* ;
 primary = NUMBER | STRING | BOOLEAN | NIL
     | "(" expression ")"  | IDENTIFIER ;
 

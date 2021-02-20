@@ -309,8 +309,8 @@ func (p *Parser) factor() Expr {
 	return expr
 }
 
-// unary implements the rule for a lox unary expression
-// unary = ( "!" | "-" ) unary | primary ;
+// unary implements the rule for a lox unary expression.
+// unary = ( "!" | "-" ) unary | call ;
 func (p *Parser) unary() Expr {
 
 	if p.match(Bang, Minus) {
@@ -318,7 +318,36 @@ func (p *Parser) unary() Expr {
 		right := p.unary()
 		return &UnaryExpr{op, right}
 	}
-	return p.primary()
+	return p.call()
+}
+
+// call implements the rule for a lox call expression.
+// call = primary ( "(" arguments? ")" )* ;
+func (p *Parser) call() Expr {
+
+	expr := p.primary()
+	for p.match(LeftParen) {
+		arguments := p.arguments()
+		paren := p.consume(RightParen, "Expect ')' after arguments.")
+		expr = &CallExpr{expr, paren, arguments}
+	}
+	return expr
+}
+
+// arguments implements the rule for a lox call set of arguments.
+// arguments = expression ( "," expression )* ;
+func (p *Parser) arguments() []Expr {
+
+	var arguments []Expr
+	if !p.check(RightParen) {
+		for ok := true; ok; ok = p.match(Comma) {
+			arguments = append(arguments, p.expression())
+			if len(arguments) >= 255 {
+				p.reportError(p.peek(), "Can't have more than 255 arguments.")
+			}
+		}
+	}
+	return arguments
 }
 
 func (p *Parser) primary() Expr {

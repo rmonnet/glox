@@ -5,9 +5,16 @@ package interp
 import (
 	"fmt"
 	"reflect"
+	"time"
 
 	"gitlab.com/rcmonnet/glox/lang"
 )
+
+// the loxCallable interface represents a lox function or closure.
+type loxCallable interface {
+	call(*Interp, []interface{}) interface{}
+	arity() int
+}
 
 // Interp represents the state of the lox interpreter.
 type Interp struct {
@@ -21,6 +28,7 @@ func New() *Interp {
 
 	interp := &Interp{}
 	interp.env = newEnv(nil)
+	interp.env.define("clock", clock{})
 	return interp
 }
 
@@ -191,6 +199,8 @@ func (i *Interp) evaluate(e lang.Expr) interface{} {
 		return i.env.get(n.Name)
 	case *lang.AssignExpr:
 		return i.evaluateAssign(n)
+	case *lang.CallExpr:
+		return i.evaluateCall(n)
 	default:
 		panic(fmt.Sprintf("Unknown Expression Type: %T", e))
 	}
@@ -226,7 +236,7 @@ func (i *Interp) evaluateAssign(a *lang.AssignExpr) interface{} {
 }
 
 // evaluateUnary evaluates a Unary expression and returns
-// the result as a literal
+// the result as a literal.
 func (i *Interp) evaluateUnary(u *lang.UnaryExpr) interface{} {
 
 	right := i.evaluate(u.Expression)
@@ -240,6 +250,8 @@ func (i *Interp) evaluateUnary(u *lang.UnaryExpr) interface{} {
 	return nil
 }
 
+// evaluateBinary evaluates a Binary expresion and returns the
+// result as a literal.
 func (i *Interp) evaluateBinary(b *lang.BinaryExpr) interface{} {
 
 	left := i.evaluate(b.LeftExpression)
@@ -294,6 +306,28 @@ func (i *Interp) evaluateBinary(b *lang.BinaryExpr) interface{} {
 		return isEqual(left, right)
 	}
 	return nil
+}
+
+// evaluateCall evaluates a function calls and return the
+// result as a literal
+func (i *Interp) evaluateCall(c *lang.CallExpr) interface{} {
+
+	callee := i.evaluate(c.Callee)
+
+	var arguments []interface{}
+	for _, arg := range c.Arguments {
+		arguments = append(arguments, i.evaluate(arg))
+	}
+
+	function, ok := callee.(loxCallable)
+	if !ok {
+		panic(runtimeError{c.Paren, "Can only call functions and classes."})
+	}
+	if len(arguments) != function.arity() {
+		panic(runtimeError{c.Paren, fmt.Sprintf(
+			"Expected %d arguments but got %d.", function.arity(), len(arguments))})
+	}
+	return function.call(i, arguments)
 }
 
 // isTruthy evaluate if the literal is true.
@@ -360,4 +394,19 @@ func valueToString(value reflect.Value) string {
 	default:
 		panic(fmt.Sprintf("Unexpected primitive type %s, %v", kind, value))
 	}
+}
+
+// lox interpreter built-in functions
+type clock struct{}
+
+func (c clock) call(i *Interp, args []interface{}) interface{} {
+	return time.Now().Unix()
+}
+
+func (c clock) arity() int {
+	return 0
+}
+
+func (c clock) String() string {
+	return "<native fn>"
 }

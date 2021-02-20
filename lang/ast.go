@@ -74,6 +74,13 @@ type LogicalExpr struct {
 	RightExpression Expr
 }
 
+// CallExpr represents a function call in lox AST.
+type CallExpr struct {
+	Callee    Expr
+	Paren     *Token
+	Arguments []Expr
+}
+
 // GroupingExpr represents a grouping expression in lox AST.
 type GroupingExpr struct {
 	Expression Expr
@@ -91,6 +98,7 @@ func (*UnaryExpr) exprNode()    {}
 func (*AssignExpr) exprNode()   {}
 func (*BinaryExpr) exprNode()   {}
 func (*LogicalExpr) exprNode()  {}
+func (*CallExpr) exprNode()     {}
 func (*GroupingExpr) exprNode() {}
 func (*VarExpr) exprNode()      {}
 
