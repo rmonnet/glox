@@ -1,0 +1,44 @@
+var greeting = "N/A";
+
+fun sayHi(first, last) {
+
+    var greeting = "Hi";
+    print greeting + ", " + first + " " + last + "!";
+}
+
+print "return value = " + sayHi("Dear", "Reader");
+print "greeting = " + greeting;
+
+fun add(a , b) {
+    return a + b;
+}
+
+print add(2, 3);
+
+fun count(n) {
+
+    while (n < 100) {
+        if (n == 3) return n;
+        print n;
+        n = n + 1;
+    }
+}
+count(1);
+
+fun fib(n) {
+    if (n <= 1) return n;
+    return fib(n-2) + fib(n-1);
+}
+
+for (var i = 0; i < 20; i = i + 1) {
+    print "fib(" + i + ")= " + fib(i);
+}
+
+print fib;
+
+fun hello() {
+    print "Hello from me!";
+}
+
+hello();
+hello(1);

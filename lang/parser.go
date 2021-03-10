@@ -64,10 +64,38 @@ func (p *Parser) declaration() (statement Stmt) {
 		}
 	}()
 
+	if p.match(Fun) {
+		return p.funDeclaration("function")
+	}
 	if p.match(Var) {
 		return p.varDeclaration()
 	}
 	return p.statement()
+}
+
+// funDeclaration implements the rule for a lox function declaration.
+// funDeclStmt = "fun" IDENTIFIER "(" parameters? ")" block ;
+func (p *Parser) funDeclaration(kind string) Stmt {
+
+	name := p.consume(Identifier, fmt.Sprintf("Expect %s name.", kind))
+
+	p.consume(LeftParen, fmt.Sprintf("Expect '(' after %s name.", kind))
+	var params []*Token
+	if !p.check(RightParen) {
+		for ok := true; ok; ok = p.match(Comma) {
+			if len(params) >= 255 {
+				p.reportError(p.peek(), "Can't have more than 255 parameters.")
+			}
+			params = append(params,
+				p.consume(Identifier, "Expect parameter name."))
+		}
+	}
+	p.consume(RightParen, "Expect ')' after parameters.")
+
+	p.consume(LeftBrace, fmt.Sprintf("Expect '{' before %s body.", kind))
+	body := p.blockStatement()
+
+	return &FunStmt{name, params, body}
 }
 
 // varDeclaration implements the rule for a lox variable declaration.
@@ -96,6 +124,9 @@ func (p *Parser) statement() Stmt {
 	}
 	if p.match(Print) {
 		return p.printStatement()
+	}
+	if p.match(Return) {
+		return p.returnStatement()
 	}
 	if p.match(While) {
 		return p.whileStatement()
@@ -193,6 +224,19 @@ func (p *Parser) printStatement() Stmt {
 	expr := p.expression()
 	p.consume(Semicolon, "Expect ';' after value.")
 	return &PrintStmt{expr}
+}
+
+// returnStatement implements the rule for a lox ReturnStmt.
+// returnStmt = "return" expression? ";" ;
+func (p *Parser) returnStatement() Stmt {
+
+	keyword := p.previous()
+	var value Expr
+	if !p.check(Semicolon) {
+		value = p.expression()
+	}
+	p.consume(Semicolon, "Expect ';' after return value.")
+	return &ReturnStmt{keyword, value}
 }
 
 // expressionStatement implements the rule for a lox exprStmt
@@ -341,10 +385,10 @@ func (p *Parser) arguments() []Expr {
 	var arguments []Expr
 	if !p.check(RightParen) {
 		for ok := true; ok; ok = p.match(Comma) {
-			arguments = append(arguments, p.expression())
 			if len(arguments) >= 255 {
 				p.reportError(p.peek(), "Can't have more than 255 arguments.")
 			}
+			arguments = append(arguments, p.expression())
 		}
 	}
 	return arguments

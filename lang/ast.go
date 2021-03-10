@@ -10,6 +10,13 @@ type ExprStmt struct {
 	Expression Expr
 }
 
+// FunStmt represents a function definition in lox AST.
+type FunStmt struct {
+	Name   *Token
+	Params []*Token
+	Body   Stmt
+}
+
 // IfStmt represents an if statement in lox AST.
 type IfStmt struct {
 	Condition  Expr
@@ -37,6 +44,12 @@ type VarDeclStmt struct {
 type WhileStmt struct {
 	Condition Expr
 	Body      Stmt
+}
+
+// ReturnStmt represents a return statement in lox AST.
+type ReturnStmt struct {
+	Keyword *Token
+	Value   Expr
 }
 
 // Expr represents an expression in lox AST.
@@ -104,8 +117,10 @@ func (*VarExpr) exprNode()      {}
 
 // Enforce the following types to be Statement.
 func (*ExprStmt) stmtNode()    {}
+func (*FunStmt) stmtNode()     {}
 func (*IfStmt) stmtNode()      {}
 func (*PrintStmt) stmtNode()   {}
+func (*ReturnStmt) stmtNode()  {}
 func (*WhileStmt) stmtNode()   {}
 func (*VarDeclStmt) stmtNode() {}
 func (*BlockStmt) stmtNode()   {}

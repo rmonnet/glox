@@ -16,6 +16,40 @@ type loxCallable interface {
 	arity() int
 }
 
+// the loxFunction represents non-native lox functions.
+type loxFunction struct {
+	decl    *lang.FunStmt
+	closure *env
+}
+
+// call evaluates the body of a lox function.
+func (f *loxFunction) call(i *Interp, args []interface{}) interface{} {
+
+	env := newEnv(f.closure)
+	for i := 0; i < len(f.decl.Params); i++ {
+		env.define(f.decl.Params[i].Lexeme, args[i])
+	}
+	// TODO: see if there is a way to avoid the cast
+	body, ok := f.decl.Body.(*lang.BlockStmt)
+	if !ok {
+		panic("Parser should always return a BlockStmt as function body")
+	}
+	i.executeBlockStmt(body, env)
+	return nil
+}
+
+// arity returns the number of parameters expected by a lox function.
+func (f *loxFunction) arity() int {
+
+	return len(f.decl.Params)
+}
+
+// string returns a string representation of a lox function.
+func (f *loxFunction) String() string {
+
+	return fmt.Sprintf("<fn %s>", f.decl.Name.Lexeme)
+}
+
 // Interp represents the state of the lox interpreter.
 type Interp struct {
 	hadCompileError bool
@@ -78,6 +112,13 @@ func (e runtimeError) Error() string {
 	return e.message
 }
 
+// returnValue represents a return object.
+// This is used in conjunction with panic to unwind the stack
+// to the point of the function call and return the value.
+type returnValue struct {
+	value interface{}
+}
+
 // interpret evaluates the expression and display the result.
 func (i *Interp) interpret(statements []lang.Stmt) {
 	defer func() {
@@ -96,6 +137,8 @@ func (i *Interp) interpret(statements []lang.Stmt) {
 func (i *Interp) execute(stmt lang.Stmt) {
 
 	switch s := stmt.(type) {
+	case *lang.ReturnStmt:
+		i.executeReturnStmt(s)
 	case *lang.PrintStmt:
 		i.executePrintStmt(s)
 	case *lang.ExprStmt:
@@ -106,8 +149,10 @@ func (i *Interp) execute(stmt lang.Stmt) {
 		i.executeWhileStmt(s)
 	case *lang.VarDeclStmt:
 		i.executeValDeclStmt(s)
+	case *lang.FunStmt:
+		i.executeFunStmt(s)
 	case *lang.BlockStmt:
-		i.executeBlockStmt(s)
+		i.executeBlockStmt(s, newEnv(i.env))
 	default:
 		panic(fmt.Sprintf("Unknown Statement Type: %T", s))
 	}
@@ -121,6 +166,17 @@ func (i *Interp) executeWhileStmt(stmt *lang.WhileStmt) {
 	}
 }
 
+func (i *Interp) executeReturnStmt(stmt *lang.ReturnStmt) {
+
+	var value interface{}
+	if stmt.Value != nil {
+		value = i.evaluate(stmt.Value)
+	}
+	// here panic is used in an exception-like pattern
+	// to unwind the stack to the function call.
+	panic(returnValue{value})
+}
+
 // executeIfStmt executes an if statement.
 func (i *Interp) executeIfStmt(stmt *lang.IfStmt) {
 
@@ -132,7 +188,7 @@ func (i *Interp) executeIfStmt(stmt *lang.IfStmt) {
 }
 
 // executeBlockStmt executes a block statement.
-func (i *Interp) executeBlockStmt(block *lang.BlockStmt) {
+func (i *Interp) executeBlockStmt(block *lang.BlockStmt, blockEnv *env) {
 
 	previousEnv := i.env
 	// ensure that the previous environment is restored
@@ -140,7 +196,7 @@ func (i *Interp) executeBlockStmt(block *lang.BlockStmt) {
 	defer func() {
 		i.env = previousEnv
 	}()
-	i.env = newEnv(previousEnv)
+	i.env = blockEnv
 	for _, s := range block.Statements {
 		i.execute(s)
 	}
@@ -159,6 +215,7 @@ func (i *Interp) executePrintStmt(stmt *lang.PrintStmt) {
 	fmt.Println(stringify(val))
 }
 
+// executeValDeclStmt executes a variable declaration.
 func (i *Interp) executeValDeclStmt(stmt *lang.VarDeclStmt) {
 
 	var val interface{}
@@ -167,6 +224,13 @@ func (i *Interp) executeValDeclStmt(stmt *lang.VarDeclStmt) {
 	}
 
 	i.env.define(stmt.Name.Lexeme, val)
+}
+
+// executeFunDeclStmt executes a function declaration.
+func (i *Interp) executeFunStmt(stmt *lang.FunStmt) {
+
+	function := &loxFunction{stmt, i.env}
+	i.env.define(stmt.Name.Lexeme, function)
 }
 
 // stringify returns a valid lox string representation
@@ -312,7 +376,21 @@ func (i *Interp) evaluateBinary(b *lang.BinaryExpr) interface{} {
 
 // evaluateCall evaluates a function calls and return the
 // result as a literal
-func (i *Interp) evaluateCall(c *lang.CallExpr) interface{} {
+func (i *Interp) evaluateCall(c *lang.CallExpr) (result interface{}) {
+
+	// intercept panic returning a returnValue.
+	// this is used by the return statement to ensure
+	// the stack is properly unwound regardless of how
+	// deeply nested the return statement is.
+	defer func() {
+		if e := recover(); e != nil {
+			if retval, ok := e.(returnValue); ok {
+				result = retval.value
+			} else {
+				panic(e)
+			}
+		}
+	}()
 
 	callee := i.evaluate(c.Callee)
 
@@ -399,6 +477,7 @@ func valueToString(value reflect.Value) string {
 }
 
 // lox interpreter built-in functions
+
 type clock struct{}
 
 func (c clock) call(i *Interp, args []interface{}) interface{} {

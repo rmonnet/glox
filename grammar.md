@@ -4,16 +4,19 @@ The Lox grammar is defined below:
 
 ```BNF
 program = declaration* EOF ;
-declaration = varDeclStmt | statement ;
+declaration = funStmt | varDeclStmt | statement ;
+funStmt = "fun" IDENTIFIER "(" parameters? ")" block ;
+parameters = IDENTIFIER ( "," IDENTIFIER )* ;
 varDeclStmt = "var" IDENTIFIER ( "=" expression )? ";" ;
 statement = exprStmt | forStmt | ifStmt | printStmt
-    | whileStmt | block ;
+    | returnStmt | whileStmt | block ;
 exprStmt = expression ";" ;
 forStmt = "for" "(" ( varDecl | exprStmt | ";" )
     expression? ";" expression? ")" statement ;
 ifStmt = "if" "(" expression ")" statement 
     ( "else" statement )? ;
 printStmt = "print" expression ";" ;
+returnStmt = "return" expression? ";" ;
 whileStmt = "while" "(" expression ")" statement ;
 block = "{" declaration* "}" ;
 expression = assignment ;
