@@ -20,6 +20,7 @@ type loxCallable interface {
 type Interp struct {
 	hadCompileError bool
 	hadRuntimeError bool
+	globalEnv       *env
 	env             *env
 }
 
@@ -27,8 +28,9 @@ type Interp struct {
 func New() *Interp {
 
 	interp := &Interp{}
-	interp.env = newEnv(nil)
-	interp.env.define("clock", clock{})
+	interp.globalEnv = newEnv(nil)
+	interp.globalEnv.define("clock", clock{})
+	interp.env = interp.globalEnv
 	return interp
 }
 
