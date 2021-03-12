@@ -10,9 +10,10 @@ import (
 // The Resolver type provides operations to resolve variables in
 // a lox AST.
 type Resolver struct {
-	interp   *Interp
-	scopes   scopeStack
-	hadError bool
+	interp           *Interp
+	scopes           scopeStack
+	currentScopeType scopeType
+	hadError         bool
 }
 
 // NewResolver creates a new resolver and associate it
@@ -71,6 +72,12 @@ func (r *Resolver) resolvePrintStmt(stmt *lang.PrintStmt) {
 // resolveReturnStmt resolves variables in a return statement.
 func (r *Resolver) resolveReturnStmt(stmt *lang.ReturnStmt) {
 
+	// it is an error if returns appears outside of a function
+	// definition.
+	if r.currentScopeType == none {
+		r.reportError(stmt.Keyword, "Can't return from top-level code.")
+	}
+
 	r.resolveExpr(stmt.Value)
 }
 
@@ -120,12 +127,15 @@ func (r *Resolver) resolveFunStmt(stmt *lang.FunStmt) {
 	r.declare(stmt.Name)
 	r.define(stmt.Name)
 
-	r.resolveFunction(stmt)
+	r.resolveFunction(stmt, function)
 }
 
 // resolveFunction resolves variables in a function body.
 // The function body represents a new scope/environment.
-func (r *Resolver) resolveFunction(stmt *lang.FunStmt) {
+func (r *Resolver) resolveFunction(stmt *lang.FunStmt, newScopeType scopeType) {
+
+	enclosingScopeType := r.currentScopeType
+	r.currentScopeType = newScopeType
 
 	r.beginScope()
 	for _, param := range stmt.Params {
@@ -134,6 +144,8 @@ func (r *Resolver) resolveFunction(stmt *lang.FunStmt) {
 	}
 	r.resolve(stmt.Body)
 	r.endScope()
+
+	r.currentScopeType = enclosingScopeType
 }
 
 // resolveExpr resolves variable references within an expression.
@@ -254,6 +266,12 @@ func (r *Resolver) declare(name *lang.Token) {
 	}
 
 	sc := r.scopes.peek()
+
+	// it is an error to redeclare the same variable in the same scope.
+	if _, ok := sc[name.Lexeme]; ok {
+		r.reportError(name, "Variable already declared in this scope.")
+	}
+
 	sc[name.Lexeme] = false
 }
 
@@ -341,3 +359,11 @@ func (s *scopeStack) get(index int) scope {
 
 	return s.stack[index]
 }
+
+// scopeType keeps track of what type of scope we are currently in.
+type scopeType int
+
+const (
+	none scopeType = iota
+	function
+)

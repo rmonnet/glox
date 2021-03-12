@@ -1,0 +1,7 @@
+// error, the same variable 'a' is redefined twice
+// in the same scope.
+
+fun bad() {
+    var a = "first";
+    var a = "second";
+}
