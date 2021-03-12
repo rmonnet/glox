@@ -14,7 +14,7 @@ type ExprStmt struct {
 type FunStmt struct {
 	Name   *Token
 	Params []*Token
-	Body   Stmt
+	Body   []Stmt
 }
 
 // IfStmt represents an if statement in lox AST.

@@ -4,8 +4,6 @@ package interp
 
 import (
 	"fmt"
-	"reflect"
-	"time"
 
 	"gitlab.com/rcmonnet/glox/lang"
 )
@@ -26,15 +24,12 @@ type loxFunction struct {
 func (f *loxFunction) call(i *Interp, args []interface{}) interface{} {
 
 	env := newEnv(f.closure)
+
 	for i := 0; i < len(f.decl.Params); i++ {
 		env.define(f.decl.Params[i].Lexeme, args[i])
 	}
-	// TODO: see if there is a way to avoid the cast
-	body, ok := f.decl.Body.(*lang.BlockStmt)
-	if !ok {
-		panic("Parser should always return a BlockStmt as function body")
-	}
-	i.executeBlockStmt(body, env)
+
+	i.executeBlockStmt(f.decl.Body, env)
 	return nil
 }
 
@@ -56,6 +51,7 @@ type Interp struct {
 	hadRuntimeError bool
 	globalEnv       *env
 	env             *env
+	locals          map[lang.Expr]int
 }
 
 // New creates a new interpreter.
@@ -65,11 +61,11 @@ func New() *Interp {
 	interp.globalEnv = newEnv(nil)
 	interp.globalEnv.define("clock", clock{})
 	interp.env = interp.globalEnv
+	interp.locals = make(map[lang.Expr]int)
 	return interp
 }
 
-// Run runs the lox interpreter on the provided
-// program.
+// Run runs the lox interpreter on the provided program.
 func (i *Interp) Run(script string) {
 
 	scanner := lang.NewScanner(script)
@@ -79,6 +75,14 @@ func (i *Interp) Run(script string) {
 	statements := parser.Parse()
 
 	if scanner.HadError() || parser.HadError() {
+		i.hadCompileError = true
+		return
+	}
+
+	resolver := NewResolver(i)
+	resolver.resolve(statements)
+
+	if resolver.hadError {
 		i.hadCompileError = true
 		return
 	}
@@ -121,6 +125,7 @@ type returnValue struct {
 
 // interpret evaluates the expression and display the result.
 func (i *Interp) interpret(statements []lang.Stmt) {
+
 	defer func() {
 		if e := recover(); e != nil {
 			rte := e.(runtimeError)
@@ -128,6 +133,7 @@ func (i *Interp) interpret(statements []lang.Stmt) {
 			i.hadRuntimeError = true
 		}
 	}()
+
 	for _, stmt := range statements {
 		i.execute(stmt)
 	}
@@ -136,25 +142,25 @@ func (i *Interp) interpret(statements []lang.Stmt) {
 // execute executes a statement.
 func (i *Interp) execute(stmt lang.Stmt) {
 
-	switch s := stmt.(type) {
+	switch actualStmt := stmt.(type) {
 	case *lang.ReturnStmt:
-		i.executeReturnStmt(s)
+		i.executeReturnStmt(actualStmt)
 	case *lang.PrintStmt:
-		i.executePrintStmt(s)
+		i.executePrintStmt(actualStmt)
 	case *lang.ExprStmt:
-		i.executeExprStmt(s)
+		i.executeExprStmt(actualStmt)
 	case *lang.IfStmt:
-		i.executeIfStmt(s)
+		i.executeIfStmt(actualStmt)
 	case *lang.WhileStmt:
-		i.executeWhileStmt(s)
+		i.executeWhileStmt(actualStmt)
 	case *lang.VarDeclStmt:
-		i.executeValDeclStmt(s)
+		i.executeValDeclStmt(actualStmt)
 	case *lang.FunStmt:
-		i.executeFunStmt(s)
+		i.executeFunStmt(actualStmt)
 	case *lang.BlockStmt:
-		i.executeBlockStmt(s, newEnv(i.env))
+		i.executeBlockStmt(actualStmt.Statements, newEnv(i.env))
 	default:
-		panic(fmt.Sprintf("Unknown Statement Type: %T", s))
+		panic(fmt.Sprintf("Unknown Statement Type: %T", stmt))
 	}
 }
 
@@ -172,8 +178,9 @@ func (i *Interp) executeReturnStmt(stmt *lang.ReturnStmt) {
 	if stmt.Value != nil {
 		value = i.evaluate(stmt.Value)
 	}
+
 	// here panic is used in an exception-like pattern
-	// to unwind the stack to the function call.
+	// to unwind the stack up to the call return point.
 	panic(returnValue{value})
 }
 
@@ -188,16 +195,20 @@ func (i *Interp) executeIfStmt(stmt *lang.IfStmt) {
 }
 
 // executeBlockStmt executes a block statement.
-func (i *Interp) executeBlockStmt(block *lang.BlockStmt, blockEnv *env) {
+// We are passing the set of statement directly so we
+// can reuse that method to execute a function body during a call.
+func (i *Interp) executeBlockStmt(statements []lang.Stmt, blockEnv *env) {
 
 	previousEnv := i.env
+
 	// ensure that the previous environment is restored
 	// no matter what happens.
 	defer func() {
 		i.env = previousEnv
 	}()
+
 	i.env = blockEnv
-	for _, s := range block.Statements {
+	for _, s := range statements {
 		i.execute(s)
 	}
 }
@@ -211,19 +222,19 @@ func (i *Interp) executeExprStmt(stmt *lang.ExprStmt) {
 // executePrintStmt executes a print statement.
 func (i *Interp) executePrintStmt(stmt *lang.PrintStmt) {
 
-	val := i.evaluate(stmt.Expression)
-	fmt.Println(stringify(val))
+	value := i.evaluate(stmt.Expression)
+	fmt.Println(stringify(value))
 }
 
 // executeValDeclStmt executes a variable declaration.
 func (i *Interp) executeValDeclStmt(stmt *lang.VarDeclStmt) {
 
-	var val interface{}
+	var value interface{}
 	if stmt.Initializer != nil {
-		val = i.evaluate(stmt.Initializer)
+		value = i.evaluate(stmt.Initializer)
 	}
 
-	i.env.define(stmt.Name.Lexeme, val)
+	i.env.define(stmt.Name.Lexeme, value)
 }
 
 // executeFunDeclStmt executes a function declaration.
@@ -233,139 +244,124 @@ func (i *Interp) executeFunStmt(stmt *lang.FunStmt) {
 	i.env.define(stmt.Name.Lexeme, function)
 }
 
-// stringify returns a valid lox string representation
-// of the literal.
-func stringify(lit interface{}) string {
-
-	if lit == nil {
-		return "nil"
-	}
-	// original code remove ".0" suffix from floats
-	// to show they represent integers. Go '%v'
-	// does this automatically
-	return fmt.Sprintf("%v", lit)
-}
-
 // evaluate evaluates an expression and returns the result
 // as a literal
-func (i *Interp) evaluate(e lang.Expr) interface{} {
+func (i *Interp) evaluate(expr lang.Expr) interface{} {
 
-	switch n := e.(type) {
+	switch actualExpr := expr.(type) {
 	case *lang.Lit:
-		return n.Value
+		return actualExpr.Value
 	case *lang.GroupingExpr:
-		return i.evaluate(n.Expression)
+		return i.evaluate(actualExpr.Expression)
 	case *lang.UnaryExpr:
-		return i.evaluateUnary(n)
+		return i.evaluateUnary(actualExpr)
 	case *lang.BinaryExpr:
-		return i.evaluateBinary(n)
+		return i.evaluateBinary(actualExpr)
 	case *lang.LogicalExpr:
-		return i.evaluateLogical(n)
+		return i.evaluateLogical(actualExpr)
 	case *lang.VarExpr:
-		return i.env.get(n.Name)
+		return i.evaluateVarExpr(actualExpr)
 	case *lang.AssignExpr:
-		return i.evaluateAssign(n)
+		return i.evaluateAssign(actualExpr)
 	case *lang.CallExpr:
-		return i.evaluateCall(n)
+		return i.evaluateCall(actualExpr)
 	default:
-		panic(fmt.Sprintf("Unknown Expression Type: %T", e))
+		panic(fmt.Sprintf("Unknown Expression Type: %T", expr))
 	}
+}
+
+// evaluateVarExpr evaluate a variable and returns its value.
+func (i *Interp) evaluateVarExpr(expr *lang.VarExpr) interface{} {
+
+	return i.lookupVariable(expr.Name, expr)
 }
 
 // evaluateLogical evaluates a Logical expression and return
-// the result as a literal
-func (i *Interp) evaluateLogical(l *lang.LogicalExpr) interface{} {
+// the result as a literal.
+// Logical operators implements short-circuits (if the result
+// can be determined from the left operand, the right one is not
+// evaluated).
+func (i *Interp) evaluateLogical(expr *lang.LogicalExpr) interface{} {
 
-	left := i.evaluate(l.LeftExpression)
-	if l.Operator.Type == lang.Or {
+	left := i.evaluate(expr.LeftExpression)
+
+	switch expr.Operator.Type {
+	case lang.Or:
 		if isTruthy(left) {
 			return left
 		}
-	} else if l.Operator.Type == lang.And {
+	case lang.And:
 		if !isTruthy(left) {
 			return left
 		}
-	} else {
+	default:
 		panic(fmt.Sprintf("Unknown Logical Operator %v",
-			l.Operator))
+			expr.Operator))
 	}
-	return i.evaluate(l.RightExpression)
+	return i.evaluate(expr.RightExpression)
 }
 
 // evaluateAssign evaluates an Assignment expression and returns
-// the result as a literal
-func (i *Interp) evaluateAssign(a *lang.AssignExpr) interface{} {
+// the result as a literal.
+func (i *Interp) evaluateAssign(expr *lang.AssignExpr) interface{} {
 
-	value := i.evaluate(a.Value)
-	i.env.assign(a.Name, value)
+	value := i.evaluate(expr.Value)
+	i.assignVariable(expr, value)
 	return value
 }
 
 // evaluateUnary evaluates a Unary expression and returns
 // the result as a literal.
-func (i *Interp) evaluateUnary(u *lang.UnaryExpr) interface{} {
+func (i *Interp) evaluateUnary(expr *lang.UnaryExpr) interface{} {
 
-	right := i.evaluate(u.Expression)
-	switch u.Operator.Type {
+	right := i.evaluate(expr.Expression)
+
+	switch expr.Operator.Type {
 	case lang.Minus:
-		val := operandToNumber(u.Operator, right)
+		val := toNumber(expr.Operator, right)
 		return -val
 	case lang.Bang:
 		return !isTruthy(right)
+	default:
+		return nil
 	}
-	return nil
 }
 
 // evaluateBinary evaluates a Binary expresion and returns the
 // result as a literal.
-func (i *Interp) evaluateBinary(b *lang.BinaryExpr) interface{} {
+func (i *Interp) evaluateBinary(expr *lang.BinaryExpr) interface{} {
 
-	left := i.evaluate(b.LeftExpression)
-	right := i.evaluate(b.RightExpression)
+	left := i.evaluate(expr.LeftExpression)
+	right := i.evaluate(expr.RightExpression)
+	op := expr.Operator
 
-	switch b.Operator.Type {
+	switch op.Type {
 	case lang.Minus:
-		leftVal, rightVal := operandsToNumbers(
-			b.Operator, left, right)
-		return leftVal - rightVal
+		return toNumber(op, left) - toNumber(op, right)
 	case lang.Slash:
-		leftVal, rightVal := operandsToNumbers(
-			b.Operator, left, right)
-		return leftVal / rightVal
+		return toNumber(op, left) / toNumber(op, right)
 	case lang.Star:
-		leftVal, rightVal := operandsToNumbers(
-			b.Operator, left, right)
-		return leftVal * rightVal
+		return toNumber(op, left) * toNumber(op, right)
 	case lang.Plus:
-		leftVal := reflect.ValueOf(left)
-		rightVal := reflect.ValueOf(right)
-		if leftVal.Kind() == reflect.Float64 && rightVal.Kind() == reflect.Float64 {
-			return leftVal.Float() + rightVal.Float()
+		if isNumber(left) && isNumber(right) {
+			return toNumber(op, left) + toNumber(op, right)
 		}
 		// to make it easier to debug,
 		// when used for string concatenation, "+" supports
 		// implicit conversion to string
-		if leftVal.Kind() == reflect.String || rightVal.Kind() == reflect.String {
-			return valueToString(leftVal) + valueToString(rightVal)
+		if isString(left) || isString(right) {
+			return toString(left) + toString(right)
 		}
-		panic(runtimeError{b.Operator,
-			"Operands must be two numbers or two strings."})
+		panic(runtimeError{expr.Operator,
+			"Operands must be two numbers or at least one string."})
 	case lang.Greater:
-		leftVal, rightVal := operandsToNumbers(
-			b.Operator, left, right)
-		return leftVal > rightVal
+		return toNumber(op, left) > toNumber(op, right)
 	case lang.GreaterEqual:
-		leftVal, rightVal := operandsToNumbers(
-			b.Operator, left, right)
-		return leftVal >= rightVal
+		return toNumber(op, left) >= toNumber(op, right)
 	case lang.Less:
-		leftVal, rightVal := operandsToNumbers(
-			b.Operator, left, right)
-		return leftVal < rightVal
+		return toNumber(op, left) < toNumber(op, right)
 	case lang.LessEqual:
-		leftVal, rightVal := operandsToNumbers(
-			b.Operator, left, right)
-		return leftVal <= rightVal
+		return toNumber(op, left) <= toNumber(op, right)
 	case lang.BangEqual:
 		return !isEqual(left, right)
 	case lang.EqualEqual:
@@ -383,11 +379,11 @@ func (i *Interp) evaluateCall(c *lang.CallExpr) (result interface{}) {
 	// the stack is properly unwound regardless of how
 	// deeply nested the return statement is.
 	defer func() {
-		if e := recover(); e != nil {
-			if retval, ok := e.(returnValue); ok {
+		if err := recover(); err != nil {
+			if retval, ok := err.(returnValue); ok {
 				result = retval.value
 			} else {
-				panic(e)
+				panic(err)
 			}
 		}
 	}()
@@ -410,15 +406,66 @@ func (i *Interp) evaluateCall(c *lang.CallExpr) (result interface{}) {
 	return function.call(i, arguments)
 }
 
+// Helper functions
+
+// resolve keep track of which environment the expression
+// is defined in.
+// It is called by the Resolver static analyzer.
+func (i *Interp) resolve(expr lang.Expr, depth int) {
+
+	i.locals[expr] = depth
+}
+
+// lookupVariable looks up the specific variable in the
+// environment using lexical scoping.
+// The specific environment level to select was specified
+// by the static analyzer using the resolve method.
+func (i *Interp) lookupVariable(name *lang.Token, expr lang.Expr) interface{} {
+
+	if distance, ok := i.locals[expr]; ok {
+		return i.env.getAt(distance, name.Lexeme)
+	}
+	return i.globalEnv.get(name)
+}
+
+// assignVariable assign the specified value to the variable
+// in the environment using lexical scoping.
+// The specific environment level to select was specified
+// by the static analyzer using the resolve method.
+func (i *Interp) assignVariable(expr *lang.AssignExpr, value interface{}) {
+
+	if distance, ok := i.locals[expr]; ok {
+		i.env.assignAt(distance, expr.Name, value)
+	} else {
+		i.globalEnv.assign(expr.Name, value)
+	}
+}
+
+// stringify returns a valid lox string representation
+// of the literal.
+func stringify(lit interface{}) string {
+
+	if lit == nil {
+		return "nil"
+	}
+	// original code remove ".0" suffix from floats
+	// to show they represent integers. Go '%v'
+	// does this automatically
+	return fmt.Sprintf("%v", lit)
+}
+
 // isTruthy evaluate if the literal is true.
 // In lox, false and nil are false, everything else is true
 func isTruthy(lit interface{}) bool {
+
 	if lit == nil {
 		return false
 	}
+
 	if val, ok := lit.(bool); ok {
 		return val
 	}
+
 	return true
 }
 
@@ -431,9 +478,9 @@ func isEqual(left interface{}, right interface{}) bool {
 	return left == right
 }
 
-// operandToNumber convert the operand to a lox number
+// toNumber convert the operand to a lox number
 // or panic if the type is incorrect.
-func operandToNumber(operator *lang.Token,
+func toNumber(operator *lang.Token,
 	operand interface{}) float64 {
 
 	val, ok := operand.(float64)
@@ -443,51 +490,37 @@ func operandToNumber(operator *lang.Token,
 	return val
 }
 
-// operandsToNumbers converts the operands to lox numbers
-// or panic if the types are incorrect.
-func operandsToNumbers(operator *lang.Token,
-	left, right interface{}) (float64, float64) {
-
-	leftVal, leftOk := left.(float64)
-	rightVal, rightOk := right.(float64)
-	if !leftOk || !rightOk {
-		panic(runtimeError{operator, "Operands must be numbers."})
-	}
-	return leftVal, rightVal
-}
-
-// valueToString converts any of the lox primitive types
+// toString converts any of the lox primitive types
 // to a string. It is used for implicit conversion to
 // string for the "+" operator.
-func valueToString(value reflect.Value) string {
+func toString(value interface{}) string {
 
-	kind := value.Kind()
-	switch {
-	case kind == reflect.String:
-		return value.String()
-	case kind == reflect.Float64:
-		return fmt.Sprintf("%v", value.Float())
-	case kind == reflect.Bool:
-		return fmt.Sprintf("%v", value.Bool())
-	case !value.IsValid():
+	if value == nil {
 		return "nil"
+	}
+
+	switch v := value.(type) {
+	case string:
+		return v
+	case float64:
+		return fmt.Sprintf("%v", v)
+	case bool:
+		return fmt.Sprintf("%v", v)
 	default:
-		panic(fmt.Sprintf("Unexpected primitive type %s, %v", kind, value))
+		panic(fmt.Sprintf("Unexpected primitive type %T", value))
 	}
 }
 
-// lox interpreter built-in functions
+// isNumber checks if a generic interface represents a lox float.
+func isNumber(value interface{}) bool {
 
-type clock struct{}
-
-func (c clock) call(i *Interp, args []interface{}) interface{} {
-	return time.Now().Unix()
+	_, ok := value.(float64)
+	return ok
 }
 
-func (c clock) arity() int {
-	return 0
-}
+// isString checks if a generic interface represents a lox float.
+func isString(value interface{}) bool {
 
-func (c clock) String() string {
-	return "<native fn>"
+	_, ok := value.(string)
+	return ok
 }

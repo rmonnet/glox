@@ -11,7 +11,7 @@ import (
 // parser. It is used to trigger synchronization.
 var errParser = fmt.Errorf("parser error")
 
-// Parser represents a lox parser
+// Parser represents a lox parser.
 type Parser struct {
 	tokens   []*Token
 	current  int
@@ -49,7 +49,7 @@ func (p *Parser) HadError() bool {
 // Parsing rules
 
 // declaration implements the rule for a lox declaration.
-// declaration = varDeclStmt | statement ;
+// declaration = funStmt | varDeclStmt | statement ;
 func (p *Parser) declaration() (statement Stmt) {
 
 	// if an error is reported while parsing a declaration
@@ -93,9 +93,9 @@ func (p *Parser) funDeclaration(kind string) Stmt {
 	p.consume(RightParen, "Expect ')' after parameters.")
 
 	p.consume(LeftBrace, fmt.Sprintf("Expect '{' before %s body.", kind))
-	body := p.blockStatement()
+	body := p.blockStatement().(*BlockStmt)
 
-	return &FunStmt{name, params, body}
+	return &FunStmt{name, params, body.Statements}
 }
 
 // varDeclaration implements the rule for a lox variable declaration.
@@ -103,17 +103,21 @@ func (p *Parser) funDeclaration(kind string) Stmt {
 func (p *Parser) varDeclaration() Stmt {
 
 	name := p.consume(Identifier, "Expect variable name.")
+
 	var initializer Expr
 	if p.match(Equal) {
 		initializer = p.expression()
 	}
+
 	p.consume(Semicolon, "Expect ';' after variable declaration.")
+
 	return &VarDeclStmt{name, initializer}
 
 }
 
 // statement implements the rule for a lox statement.
-// statement = printStmt | exprStmt | block ;
+// statement = exprStmt | forStmt | ifStmt | printStmt
+//     | returnStmt | whileStmt | block ;
 func (p *Parser) statement() Stmt {
 
 	if p.match(For) {
@@ -144,6 +148,7 @@ func (p *Parser) statement() Stmt {
 func (p *Parser) forStatement() Stmt {
 
 	p.consume(LeftParen, "Expect '(' after 'for'.")
+
 	var initializer Stmt
 	if p.match(Semicolon) {
 		// nothing to do
@@ -152,18 +157,30 @@ func (p *Parser) forStatement() Stmt {
 	} else {
 		initializer = p.expressionStatement()
 	}
+
 	var condition Expr
 	if !p.check(Semicolon) {
 		condition = p.expression()
 	}
 	p.consume(Semicolon, "Expect ';' after loop condition.")
+
 	var increment Expr
 	if !p.check(RightParen) {
 		increment = p.expression()
 	}
+
 	p.consume(RightParen, "Expect ')' after for clauses.")
+
 	body := p.statement()
 
+	// the for loop is transformed into a while loop
+	// {
+	//  	<initialization>
+	//      while (condition) {
+	//			<body>
+	//			<increment>
+	//		}
+	// }
 	if increment != nil {
 		body = newBlockStmt(body, &ExprStmt{increment})
 	}
@@ -173,6 +190,7 @@ func (p *Parser) forStatement() Stmt {
 	if initializer != nil {
 		body = newBlockStmt(initializer, body)
 	}
+
 	return body
 }
 
@@ -184,13 +202,16 @@ func (p *Parser) ifStatement() Stmt {
 	p.consume(LeftParen, "Expect '(' after 'if'.")
 	condition := p.expression()
 	p.consume(RightParen, "Expect ')' after if condition.")
+
 	thenBranch := p.statement()
+
 	// note: for dangling else, the logic here will
 	// associate the 'else' with the closest 'if'
 	var elseBranch Stmt
 	if p.match(Else) {
 		elseBranch = p.statement()
 	}
+
 	return &IfStmt{condition, thenBranch, elseBranch}
 }
 
@@ -201,7 +222,9 @@ func (p *Parser) whileStatement() Stmt {
 	p.consume(LeftParen, "Expect '(' after 'while'.")
 	condition := p.expression()
 	p.consume(RightParen, "Expect ')' after while condition.")
+
 	body := p.statement()
+
 	return &WhileStmt{condition, body}
 }
 
@@ -213,7 +236,9 @@ func (p *Parser) blockStatement() Stmt {
 	for !p.check(RightBrace) && !p.isAtEnd() {
 		statements = append(statements, p.declaration())
 	}
+
 	p.consume(RightBrace, "Expect '}' after block.")
+
 	return &BlockStmt{statements}
 }
 
@@ -222,7 +247,9 @@ func (p *Parser) blockStatement() Stmt {
 func (p *Parser) printStatement() Stmt {
 
 	expr := p.expression()
+
 	p.consume(Semicolon, "Expect ';' after value.")
+
 	return &PrintStmt{expr}
 }
 
@@ -231,11 +258,14 @@ func (p *Parser) printStatement() Stmt {
 func (p *Parser) returnStatement() Stmt {
 
 	keyword := p.previous()
+
 	var value Expr
 	if !p.check(Semicolon) {
 		value = p.expression()
 	}
+
 	p.consume(Semicolon, "Expect ';' after return value.")
+
 	return &ReturnStmt{keyword, value}
 }
 
@@ -244,7 +274,9 @@ func (p *Parser) returnStatement() Stmt {
 func (p *Parser) expressionStatement() Stmt {
 
 	expr := p.expression()
+
 	p.consume(Semicolon, "Expect ';' after expression.")
+
 	return &ExprStmt{expr}
 }
 
@@ -264,6 +296,7 @@ func (p *Parser) assignment() Expr {
 	// check if it is an identifier when we find the "=" token.
 
 	expr := p.or()
+
 	if p.match(Equal) {
 		equals := p.previous()
 		value := p.assignment()
@@ -272,6 +305,7 @@ func (p *Parser) assignment() Expr {
 		}
 		p.reportError(equals, "Invalid assignment target.")
 	}
+
 	return expr
 }
 
@@ -280,11 +314,13 @@ func (p *Parser) assignment() Expr {
 func (p *Parser) or() Expr {
 
 	expr := p.and()
+
 	for p.match(Or) {
 		op := p.previous()
 		right := p.and()
 		expr = &LogicalExpr{expr, op, right}
 	}
+
 	return expr
 }
 
@@ -293,11 +329,13 @@ func (p *Parser) or() Expr {
 func (p *Parser) and() Expr {
 
 	expr := p.equality()
+
 	for p.match(And) {
 		op := p.previous()
 		right := p.equality()
 		expr = &LogicalExpr{expr, op, right}
 	}
+
 	return expr
 }
 
@@ -306,6 +344,7 @@ func (p *Parser) and() Expr {
 func (p *Parser) equality() Expr {
 
 	expr := p.comparison()
+
 	for p.match(BangEqual, EqualEqual) {
 		op := p.previous()
 		right := p.comparison()
@@ -319,11 +358,13 @@ func (p *Parser) equality() Expr {
 func (p *Parser) comparison() Expr {
 
 	expr := p.term()
+
 	for p.match(Greater, GreaterEqual, Less, LessEqual) {
 		op := p.previous()
 		right := p.term()
 		expr = &BinaryExpr{expr, op, right}
 	}
+
 	return expr
 }
 
@@ -332,11 +373,13 @@ func (p *Parser) comparison() Expr {
 func (p *Parser) term() Expr {
 
 	expr := p.factor()
+
 	for p.match(Minus, Plus) {
 		op := p.previous()
 		right := p.factor()
 		expr = &BinaryExpr{expr, op, right}
 	}
+
 	return expr
 }
 
@@ -345,11 +388,13 @@ func (p *Parser) term() Expr {
 func (p *Parser) factor() Expr {
 
 	expr := p.unary()
+
 	for p.match(Slash, Star) {
 		op := p.previous()
 		right := p.unary()
 		expr = &BinaryExpr{expr, op, right}
 	}
+
 	return expr
 }
 
@@ -362,6 +407,7 @@ func (p *Parser) unary() Expr {
 		right := p.unary()
 		return &UnaryExpr{op, right}
 	}
+
 	return p.call()
 }
 
@@ -370,11 +416,13 @@ func (p *Parser) unary() Expr {
 func (p *Parser) call() Expr {
 
 	expr := p.primary()
+
 	for p.match(LeftParen) {
 		arguments := p.arguments()
 		paren := p.consume(RightParen, "Expect ')' after arguments.")
 		expr = &CallExpr{expr, paren, arguments}
 	}
+
 	return expr
 }
 
@@ -383,6 +431,7 @@ func (p *Parser) call() Expr {
 func (p *Parser) arguments() []Expr {
 
 	var arguments []Expr
+
 	if !p.check(RightParen) {
 		for ok := true; ok; ok = p.match(Comma) {
 			if len(arguments) >= 255 {
@@ -391,6 +440,7 @@ func (p *Parser) arguments() []Expr {
 			arguments = append(arguments, p.expression())
 		}
 	}
+
 	return arguments
 }
 
@@ -413,10 +463,10 @@ func (p *Parser) primary() Expr {
 		return &Lit{n}
 	}
 	if p.match(String) {
-		// technically we should remove just a single
-		// quote at the beginning and the end of the string
-		// but the lox grammar guarantees there is only
-		// a single quote at the beginning and end
+		// technically we should be careful to remove just a
+		// single quote at the beginning and the end of the
+		// string but the lox grammar guarantees there is only
+		// a single quote at the beginning and end anyway.
 		s := strings.Trim(p.previous().Lexeme, "\"")
 		return &Lit{s}
 	}
@@ -428,6 +478,7 @@ func (p *Parser) primary() Expr {
 		p.consume(RightParen, "Expect ')' after expression.")
 		return &GroupingExpr{expr}
 	}
+
 	p.reportError(p.peek(), "Expect expression.")
 	panic(errParser)
 }
@@ -435,7 +486,8 @@ func (p *Parser) primary() Expr {
 // Helper functions
 
 // match returns true if the current token matches
-// one of the provided token types.
+// one of the provided token types. If the match
+// is successful, the token is consumed.
 func (p *Parser) match(types ...TokenType) bool {
 
 	for _, tokenType := range types {
@@ -444,10 +496,11 @@ func (p *Parser) match(types ...TokenType) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
-// consume check and skip the next token. If the token
+// consume checks and skips the next token. If the token
 // is different from the expected token, an error is raised.
 func (p *Parser) consume(tokenType TokenType, msg string) *Token {
 
@@ -461,11 +514,13 @@ func (p *Parser) consume(tokenType TokenType, msg string) *Token {
 
 // check returns true if the current token matches
 // the specified token type.
+// No token is consumed.
 func (p *Parser) check(tokenType TokenType) bool {
 
 	if p.isAtEnd() {
 		return false
 	}
+
 	return p.peek().Type == tokenType
 }
 
@@ -475,6 +530,7 @@ func (p *Parser) advance() *Token {
 	if !p.isAtEnd() {
 		p.current++
 	}
+
 	return p.previous()
 }
 
@@ -484,7 +540,7 @@ func (p *Parser) isAtEnd() bool {
 	return p.peek().Type == End
 }
 
-// peek returns the next token in the parsing stream.
+// peek returns the current token in the parsing stream.
 func (p *Parser) peek() *Token {
 
 	return p.tokens[p.current]
@@ -524,6 +580,7 @@ func (p *Parser) reportError(token *Token, msg string) {
 	} else {
 		where = "at '" + token.Lexeme + "'"
 	}
+
 	fmt.Fprintf(os.Stderr, "[line %d] Error %s: %s\n",
 		token.Line, where, msg)
 	p.hadError = true
