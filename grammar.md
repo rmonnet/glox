@@ -4,8 +4,8 @@ The Lox grammar is defined below:
 
 ```BNF
 program = declaration* EOF ;
-declaration = funStmt | varDeclStmt | statement ;
-funStmt = "fun" IDENTIFIER "(" parameters? ")" block ;
+declaration = funDeclStmt | varDeclStmt | statement ;
+funDeclStmt = "fun" IDENTIFIER "(" parameters? ")" block ;
 parameters = IDENTIFIER ( "," IDENTIFIER )* ;
 varDeclStmt = "var" IDENTIFIER ( "=" expression )? ";" ;
 statement = exprStmt | forStmt | ifStmt | printStmt

@@ -47,8 +47,8 @@ func (r *Resolver) resolveStmt(stmt lang.Stmt) {
 		r.resolveWhileStmt(actualStmt)
 	case *lang.VarDeclStmt:
 		r.resolveVarDeclStmt(actualStmt)
-	case *lang.FunStmt:
-		r.resolveFunStmt(actualStmt)
+	case *lang.FunDeclStmt:
+		r.resolveFunDeclStmt(actualStmt)
 	case *lang.BlockStmt:
 		r.resolveBlockStmt(actualStmt)
 	default:
@@ -122,7 +122,7 @@ func (r *Resolver) resolveVarDeclStmt(stmt *lang.VarDeclStmt) {
 
 // resolveFunStmt resolves a function declaration.
 // This method keeps track of the function declaration and definition.
-func (r *Resolver) resolveFunStmt(stmt *lang.FunStmt) {
+func (r *Resolver) resolveFunDeclStmt(stmt *lang.FunDeclStmt) {
 
 	r.declare(stmt.Name)
 	r.define(stmt.Name)
@@ -132,7 +132,7 @@ func (r *Resolver) resolveFunStmt(stmt *lang.FunStmt) {
 
 // resolveFunction resolves variables in a function body.
 // The function body represents a new scope/environment.
-func (r *Resolver) resolveFunction(stmt *lang.FunStmt, newScopeType scopeType) {
+func (r *Resolver) resolveFunction(stmt *lang.FunDeclStmt, newScopeType scopeType) {
 
 	enclosingScopeType := r.currentScopeType
 	r.currentScopeType = newScopeType

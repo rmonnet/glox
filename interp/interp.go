@@ -16,7 +16,7 @@ type loxCallable interface {
 
 // the loxFunction represents non-native lox functions.
 type loxFunction struct {
-	decl    *lang.FunStmt
+	decl    *lang.FunDeclStmt
 	closure *env
 }
 
@@ -155,8 +155,8 @@ func (i *Interp) execute(stmt lang.Stmt) {
 		i.executeWhileStmt(actualStmt)
 	case *lang.VarDeclStmt:
 		i.executeValDeclStmt(actualStmt)
-	case *lang.FunStmt:
-		i.executeFunStmt(actualStmt)
+	case *lang.FunDeclStmt:
+		i.executeFunDeclStmt(actualStmt)
 	case *lang.BlockStmt:
 		i.executeBlockStmt(actualStmt.Statements, newEnv(i.env))
 	default:
@@ -238,7 +238,7 @@ func (i *Interp) executeValDeclStmt(stmt *lang.VarDeclStmt) {
 }
 
 // executeFunDeclStmt executes a function declaration.
-func (i *Interp) executeFunStmt(stmt *lang.FunStmt) {
+func (i *Interp) executeFunDeclStmt(stmt *lang.FunDeclStmt) {
 
 	function := &loxFunction{stmt, i.env}
 	i.env.define(stmt.Name.Lexeme, function)

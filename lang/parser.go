@@ -95,7 +95,7 @@ func (p *Parser) funDeclaration(kind string) Stmt {
 	p.consume(LeftBrace, fmt.Sprintf("Expect '{' before %s body.", kind))
 	body := p.blockStatement().(*BlockStmt)
 
-	return &FunStmt{name, params, body.Statements}
+	return &FunDeclStmt{name, params, body.Statements}
 }
 
 // varDeclaration implements the rule for a lox variable declaration.

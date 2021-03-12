@@ -10,8 +10,8 @@ type ExprStmt struct {
 	Expression Expr
 }
 
-// FunStmt represents a function definition in lox AST.
-type FunStmt struct {
+// FunDeclStmt represents a function definition in lox AST.
+type FunDeclStmt struct {
 	Name   *Token
 	Params []*Token
 	Body   []Stmt
@@ -117,7 +117,7 @@ func (*VarExpr) exprNode()      {}
 
 // Enforce the following types to be Statement.
 func (*ExprStmt) stmtNode()    {}
-func (*FunStmt) stmtNode()     {}
+func (*FunDeclStmt) stmtNode() {}
 func (*IfStmt) stmtNode()      {}
 func (*PrintStmt) stmtNode()   {}
 func (*ReturnStmt) stmtNode()  {}
