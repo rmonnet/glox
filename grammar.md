@@ -4,8 +4,11 @@ The Lox grammar is defined below:
 
 ```BNF
 program = declaration* EOF ;
-declaration = funDeclStmt | varDeclStmt | statement ;
-funDeclStmt = "fun" IDENTIFIER "(" parameters? ")" block ;
+declaration = classDeclStmt |funDeclStmt | varDeclStmt
+    | statement ;
+classDeclStmt = "class" IDENTIFIER "{" function* "}" ;
+funDeclStmt = "fun" function;
+function = IDENTIFIER "(" parameters? ")" block ;
 parameters = IDENTIFIER ( "," IDENTIFIER )* ;
 varDeclStmt = "var" IDENTIFIER ( "=" expression )? ";" ;
 statement = exprStmt | forStmt | ifStmt | printStmt
@@ -20,7 +23,7 @@ returnStmt = "return" expression? ";" ;
 whileStmt = "while" "(" expression ")" statement ;
 block = "{" declaration* "}" ;
 expression = assignment ;
-assignment = IDENTIFIER "=" assignment | logic_or ;
+assignment = ( call "." )? IDENTIFIER "=" assignment | logic_or ;
 logic_or = logic_and ( "or" logic_and )* ;
 logic_and = equality ( "and" equality )* ;
 equality = comparison ( ("!=" | "==" ) comparison )* ;
@@ -29,10 +32,10 @@ term = factor ( ( "-" | "+" ) factor )* ;
 factor = unary ( ( "/" | "*" ) unary )* ;
 unary = ( "!" | "-" ) unary
     | call ;
-call = primary ( "(" arguments? ")" )* ;
+call = primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
 arguments = expression ( "," expression )* ;
 primary = NUMBER | STRING | BOOLEAN | NIL
-    | "(" expression ")"  | IDENTIFIER ;
+    | "(" expression ")"  | "this" | IDENTIFIER ;
 
 NUMBER = [0-9]+ ( "." [0-9]+ )?
 STRING = "\"" ( . )* "\""

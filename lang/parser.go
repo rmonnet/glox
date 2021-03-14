@@ -64,6 +64,9 @@ func (p *Parser) declaration() (statement Stmt) {
 		}
 	}()
 
+	if p.match(Class) {
+		return p.classDeclaration()
+	}
 	if p.match(Fun) {
 		return p.funDeclaration("function")
 	}
@@ -71,6 +74,26 @@ func (p *Parser) declaration() (statement Stmt) {
 		return p.varDeclaration()
 	}
 	return p.statement()
+}
+
+// classDeclaration implements the rule for a lox class declaration.
+// classDeclStmt = "class" IDENTIFIER "{" function* "}" ;
+// function = IDENTIFIER "(" parameters? ")" block ;
+func (p *Parser) classDeclaration() Stmt {
+
+	name := p.consume(Identifier, "Expect class name.")
+
+	p.consume(LeftBrace, "Expect '{' before class body.")
+
+	var methods []*FunDeclStmt
+	for !p.check(RightBrace) && !p.isAtEnd() {
+		method := p.funDeclaration("method").(*FunDeclStmt)
+		methods = append(methods, method)
+	}
+
+	p.consume(RightBrace, "Expect '}' after class body.")
+
+	return &ClassDeclStmt{name, methods}
 }
 
 // funDeclaration implements the rule for a lox function declaration.
@@ -302,8 +325,11 @@ func (p *Parser) assignment() Expr {
 		value := p.assignment()
 		if varExpr, ok := expr.(*VarExpr); ok {
 			return &AssignExpr{varExpr.Name, value}
+		} else if getExpr, ok := expr.(*GetExpr); ok {
+			return &SetExpr{getExpr.Object, getExpr.Name, value}
+		} else {
+			p.reportError(equals, "Invalid assignment target.")
 		}
-		p.reportError(equals, "Invalid assignment target.")
 	}
 
 	return expr
@@ -412,15 +438,23 @@ func (p *Parser) unary() Expr {
 }
 
 // call implements the rule for a lox call expression.
-// call = primary ( "(" arguments? ")" )* ;
+// This rule also covers instance fields access.
+// call = primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
 func (p *Parser) call() Expr {
 
 	expr := p.primary()
 
-	for p.match(LeftParen) {
-		arguments := p.arguments()
-		paren := p.consume(RightParen, "Expect ')' after arguments.")
-		expr = &CallExpr{expr, paren, arguments}
+	for {
+		if p.match(LeftParen) {
+			arguments := p.arguments()
+			paren := p.consume(RightParen, "Expect ')' after arguments.")
+			expr = &CallExpr{expr, paren, arguments}
+		} else if p.match(Dot) {
+			name := p.consume(Identifier, "Expect property name after '.'.")
+			expr = &GetExpr{expr, name}
+		} else {
+			break
+		}
 	}
 
 	return expr
@@ -469,6 +503,9 @@ func (p *Parser) primary() Expr {
 		// a single quote at the beginning and end anyway.
 		s := strings.Trim(p.previous().Lexeme, "\"")
 		return &Lit{s}
+	}
+	if p.match(This) {
+		return &ThisExpr{p.previous()}
 	}
 	if p.match(Identifier) {
 		return &VarExpr{p.previous()}

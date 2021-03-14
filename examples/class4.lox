@@ -1,0 +1,32 @@
+class Person {
+
+    report() {
+        print this.name + " reporting for duty";
+    }
+
+    init() {
+        this.name = "John Doe";
+    }
+}
+
+Person().report();
+
+class Cake {
+
+    taste() {
+        var adjective = "delicious";
+        print "The " + this.flavor + " cake is " + adjective + "!";
+    }
+
+    init(flavor) {
+        this.flavor = flavor;
+    }
+}
+
+var cake = Cake("German chocolate");
+cake.taste();
+
+var crum = Cake();
+// report "Expected an argument but got 0"
+
+

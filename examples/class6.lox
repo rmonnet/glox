@@ -1,0 +1,18 @@
+class Foo {
+    init() {
+        this.name = "John Doe";
+        return;
+    }
+    age() {
+        return 10;
+    }
+    getName() {
+        return this.name;
+    }
+
+}
+
+var foo = Foo();
+print foo;
+print foo.getName();
+print foo.init();

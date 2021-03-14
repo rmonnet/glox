@@ -8,43 +8,6 @@ import (
 	"gitlab.com/rcmonnet/glox/lang"
 )
 
-// the loxCallable interface represents a lox function or closure.
-type loxCallable interface {
-	call(*Interp, []interface{}) interface{}
-	arity() int
-}
-
-// the loxFunction represents non-native lox functions.
-type loxFunction struct {
-	decl    *lang.FunDeclStmt
-	closure *env
-}
-
-// call evaluates the body of a lox function.
-func (f *loxFunction) call(i *Interp, args []interface{}) interface{} {
-
-	env := newEnv(f.closure)
-
-	for i := 0; i < len(f.decl.Params); i++ {
-		env.define(f.decl.Params[i].Lexeme, args[i])
-	}
-
-	i.executeBlockStmt(f.decl.Body, env)
-	return nil
-}
-
-// arity returns the number of parameters expected by a lox function.
-func (f *loxFunction) arity() int {
-
-	return len(f.decl.Params)
-}
-
-// string returns a string representation of a lox function.
-func (f *loxFunction) String() string {
-
-	return fmt.Sprintf("<fn %s>", f.decl.Name.Lexeme)
-}
-
 // Interp represents the state of the lox interpreter.
 type Interp struct {
 	hadCompileError bool
@@ -155,6 +118,8 @@ func (i *Interp) execute(stmt lang.Stmt) {
 		i.executeWhileStmt(actualStmt)
 	case *lang.VarDeclStmt:
 		i.executeValDeclStmt(actualStmt)
+	case *lang.ClassDeclStmt:
+		i.executeClassDeclStmt(actualStmt)
 	case *lang.FunDeclStmt:
 		i.executeFunDeclStmt(actualStmt)
 	case *lang.BlockStmt:
@@ -237,10 +202,28 @@ func (i *Interp) executeValDeclStmt(stmt *lang.VarDeclStmt) {
 	i.env.define(stmt.Name.Lexeme, value)
 }
 
+// executeClassDeclStmt executes a class declaration.
+func (i *Interp) executeClassDeclStmt(stmt *lang.ClassDeclStmt) {
+
+	// separate definition from assignment to allow
+	// reference to the class inside its own methods.
+	i.env.define(stmt.Name.Lexeme, nil)
+
+	methods := make(map[string]*loxFunction)
+	for _, method := range stmt.Methods {
+		isInitializer := method.Name.Lexeme == "init"
+		function := &loxFunction{method, i.env, isInitializer}
+		methods[method.Name.Lexeme] = function
+	}
+	class := &loxClass{stmt.Name.Lexeme, methods}
+
+	i.env.assign(stmt.Name, class)
+}
+
 // executeFunDeclStmt executes a function declaration.
 func (i *Interp) executeFunDeclStmt(stmt *lang.FunDeclStmt) {
 
-	function := &loxFunction{stmt, i.env}
+	function := &loxFunction{stmt, i.env, false}
 	i.env.define(stmt.Name.Lexeme, function)
 }
 
@@ -260,20 +243,33 @@ func (i *Interp) evaluate(expr lang.Expr) interface{} {
 	case *lang.LogicalExpr:
 		return i.evaluateLogical(actualExpr)
 	case *lang.VarExpr:
-		return i.evaluateVarExpr(actualExpr)
+		return i.evaluateVar(actualExpr)
+	case *lang.ThisExpr:
+		return i.evaluateThis(actualExpr)
 	case *lang.AssignExpr:
 		return i.evaluateAssign(actualExpr)
 	case *lang.CallExpr:
 		return i.evaluateCall(actualExpr)
+	case *lang.GetExpr:
+		return i.evaluateGet(actualExpr)
+	case *lang.SetExpr:
+		return i.evaluateSet(actualExpr)
 	default:
 		panic(fmt.Sprintf("Unknown Expression Type: %T", expr))
 	}
 }
 
-// evaluateVarExpr evaluate a variable and returns its value.
-func (i *Interp) evaluateVarExpr(expr *lang.VarExpr) interface{} {
+// evaluateVar evaluates a variable and returns its value.
+func (i *Interp) evaluateVar(expr *lang.VarExpr) interface{} {
 
 	return i.lookupVariable(expr.Name, expr)
+}
+
+// evaluateThis evaluates the "this" pseudo-variable and returns
+// the instance it is pointing to.
+func (i *Interp) evaluateThis(expr *lang.ThisExpr) interface{} {
+
+	return i.lookupVariable(expr.Keyword, expr)
 }
 
 // evaluateLogical evaluates a Logical expression and return
@@ -371,22 +367,8 @@ func (i *Interp) evaluateBinary(expr *lang.BinaryExpr) interface{} {
 }
 
 // evaluateCall evaluates a function calls and return the
-// result as a literal
-func (i *Interp) evaluateCall(c *lang.CallExpr) (result interface{}) {
-
-	// intercept panic returning a returnValue.
-	// this is used by the return statement to ensure
-	// the stack is properly unwound regardless of how
-	// deeply nested the return statement is.
-	defer func() {
-		if err := recover(); err != nil {
-			if retval, ok := err.(returnValue); ok {
-				result = retval.value
-			} else {
-				panic(err)
-			}
-		}
-	}()
+// result as a literal.
+func (i *Interp) evaluateCall(c *lang.CallExpr) interface{} {
 
 	callee := i.evaluate(c.Callee)
 
@@ -396,17 +378,226 @@ func (i *Interp) evaluateCall(c *lang.CallExpr) (result interface{}) {
 	}
 
 	function, ok := callee.(loxCallable)
+
 	if !ok {
 		panic(runtimeError{c.Paren, "Can only call functions and classes."})
 	}
+
 	if len(arguments) != function.arity() {
 		panic(runtimeError{c.Paren, fmt.Sprintf(
 			"Expected %d arguments but got %d.", function.arity(), len(arguments))})
 	}
+
 	return function.call(i, arguments)
 }
 
+// evaluateGet evaluates a field reference and return the
+// result as a literal.
+func (i *Interp) evaluateGet(expr *lang.GetExpr) interface{} {
+
+	object := i.evaluate(expr.Object)
+
+	instance, ok := object.(*loxInstance)
+
+	if !ok {
+		panic(runtimeError{expr.Name,
+			"Only class instances have fields."})
+	}
+
+	return instance.get(expr.Name)
+}
+
+// evaluateSet assigns a field reference and return the
+// assigned value as a literal.
+func (i *Interp) evaluateSet(expr *lang.SetExpr) interface{} {
+
+	object := i.evaluate(expr.Object)
+
+	instance, ok := object.(*loxInstance)
+
+	if !ok {
+		panic(runtimeError{expr.Name,
+			"Only class instances have fields."})
+	}
+
+	value := i.evaluate(expr.Value)
+
+	instance.set(expr.Name, value)
+	return value
+}
+
+// --------------------------------
+// functions and class structures
+// --------------------------------
+
+// the loxCallable interface represents a lox function or closure.
+type loxCallable interface {
+	call(*Interp, []interface{}) interface{}
+	arity() int
+}
+
+// the loxFunction represents non-native lox functions.
+type loxFunction struct {
+	decl          *lang.FunDeclStmt
+	closure       *env
+	isInitializer bool
+}
+
+// call evaluates the body of a lox function.
+func (f *loxFunction) call(interp *Interp, args []interface{}) (result interface{}) {
+
+	// intercept panic returning a returnValue.
+	// this is used by the return statement to ensure
+	// the stack is properly unwound regardless of how
+	// deeply nested the return statement is.
+	defer func() {
+		if err := recover(); err != nil {
+			if retval, ok := err.(returnValue); ok {
+				// initializer always return class instance.
+				if f.isInitializer {
+					result = f.closure.getAt(0, "this")
+				} else {
+					result = retval.value
+				}
+			} else {
+				panic(err)
+			}
+		}
+	}()
+
+	env := newEnv(f.closure)
+
+	for i := 0; i < len(f.decl.Params); i++ {
+		env.define(f.decl.Params[i].Lexeme, args[i])
+	}
+
+	interp.executeBlockStmt(f.decl.Body, env)
+
+	// "init()" always returns a reference to the class instance,
+	// even if called directly.
+	if f.isInitializer {
+		return f.closure.getAt(0, "this")
+	}
+	return nil
+}
+
+// arity returns the number of parameters expected by a lox function.
+func (f *loxFunction) arity() int {
+
+	return len(f.decl.Params)
+}
+
+// bind creates a new function with the same body but
+// a new environment with a bound value of "this".
+// It ties a method to the specific class instance
+// it references.
+func (f *loxFunction) bind(instance *loxInstance) *loxFunction {
+
+	env := newEnv(f.closure)
+	env.define("this", instance)
+	return &loxFunction{f.decl, env, f.isInitializer}
+}
+
+// string returns a string representation of a lox function.
+func (f *loxFunction) String() string {
+
+	return fmt.Sprintf("<fun %s>", f.decl.Name.Lexeme)
+}
+
+type loxClass struct {
+	Name    string
+	Methods map[string]*loxFunction
+}
+
+// call creates an instance of a lox class.
+func (c *loxClass) call(interp *Interp, args []interface{}) interface{} {
+
+	instance := newLoxInstance(c)
+
+	if initializer, ok := c.findMethod("init"); ok {
+		initializer.bind(instance).call(interp, args)
+	}
+
+	return instance
+}
+
+// arity returns the number of parameters expected by a lox class
+// constructor.
+func (c *loxClass) arity() int {
+
+	if initializer, ok := c.findMethod("init"); ok {
+		return initializer.arity()
+	}
+
+	return 0
+}
+
+// findMethod look up the requested method name in the class.
+func (c *loxClass) findMethod(name string) (*loxFunction, bool) {
+
+	method, ok := c.Methods[name]
+	return method, ok
+}
+
+// string returns a string representation of a lox class.
+func (c *loxClass) String() string {
+
+	return fmt.Sprintf("<class %s>", c.Name)
+}
+
+// loxInstance represents an instance of a lox class.
+type loxInstance struct {
+	class  *loxClass
+	fields map[string]interface{}
+}
+
+// newLoxInstance creates a new instance of the given class.
+func newLoxInstance(class *loxClass) *loxInstance {
+
+	instance := &loxInstance{
+		class:  class,
+		fields: make(map[string]interface{}),
+	}
+	return instance
+}
+
+// get retrieves the value associated with the instance field
+// or raise an error if the field is undefined.
+func (i *loxInstance) get(name *lang.Token) interface{} {
+
+	// lookup name can be a field or a method
+	value, ok := i.fields[name.Lexeme]
+
+	if ok {
+		return value
+	}
+
+	method, ok := i.class.findMethod(name.Lexeme)
+
+	if ok {
+		return method.bind(i)
+	}
+
+	panic(runtimeError{name,
+		fmt.Sprintf("Undefined field or method '%s'.", name.Lexeme)})
+}
+
+// set assigns a value to an instance field. If this field
+// is undefined, set adds it to the instance.
+func (i *loxInstance) set(name *lang.Token, value interface{}) {
+
+	i.fields[name.Lexeme] = value
+}
+
+// string returns a string representation of a lox instance.
+func (i *loxInstance) String() string {
+
+	return fmt.Sprintf("<instance %s>", i.class.Name)
+}
+
+// ------------------
 // Helper functions
+// ------------------
 
 // resolve keep track of which environment the expression
 // is defined in.
@@ -495,6 +686,7 @@ func toNumber(operator *lang.Token,
 // string for the "+" operator.
 func toString(value interface{}) string {
 
+	// TODO: it should be sufficient to just printf("%v", value)
 	if value == nil {
 		return "nil"
 	}
@@ -506,6 +698,12 @@ func toString(value interface{}) string {
 		return fmt.Sprintf("%v", v)
 	case bool:
 		return fmt.Sprintf("%v", v)
+	case *loxFunction:
+		return v.String()
+	case *loxClass:
+		return v.String()
+	case *loxInstance:
+		return v.String()
 	default:
 		panic(fmt.Sprintf("Unexpected primitive type %T", value))
 	}

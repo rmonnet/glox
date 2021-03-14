@@ -10,10 +10,11 @@ import (
 // The Resolver type provides operations to resolve variables in
 // a lox AST.
 type Resolver struct {
-	interp           *Interp
-	scopes           scopeStack
-	currentScopeType scopeType
-	hadError         bool
+	interp               *Interp
+	scopes               scopeStack
+	currentFunctionScope functionScope
+	currentClassScope    classScope
+	hadError             bool
 }
 
 // NewResolver creates a new resolver and associate it
@@ -47,6 +48,8 @@ func (r *Resolver) resolveStmt(stmt lang.Stmt) {
 		r.resolveWhileStmt(actualStmt)
 	case *lang.VarDeclStmt:
 		r.resolveVarDeclStmt(actualStmt)
+	case *lang.ClassDeclStmt:
+		r.resolveClassDeclStmt(actualStmt)
 	case *lang.FunDeclStmt:
 		r.resolveFunDeclStmt(actualStmt)
 	case *lang.BlockStmt:
@@ -74,11 +77,21 @@ func (r *Resolver) resolveReturnStmt(stmt *lang.ReturnStmt) {
 
 	// it is an error if returns appears outside of a function
 	// definition.
-	if r.currentScopeType == none {
+	if r.currentFunctionScope == outsideFunction {
 		r.reportError(stmt.Keyword, "Can't return from top-level code.")
 	}
 
-	r.resolveExpr(stmt.Value)
+	// it is an error to return a value from inside an
+	// initializer (initializer always return the class instance).
+	if r.currentFunctionScope == inInitializer &&
+		stmt.Value != nil {
+		r.reportError(stmt.Keyword,
+			"Can't return a value from an initializer")
+	}
+
+	if stmt.Value != nil {
+		r.resolveExpr(stmt.Value)
+	}
 }
 
 // resolveExprStmt resolves variables in an expression statement.
@@ -120,22 +133,48 @@ func (r *Resolver) resolveVarDeclStmt(stmt *lang.VarDeclStmt) {
 	r.define(stmt.Name)
 }
 
-// resolveFunStmt resolves a function declaration.
+// resolveClassDeclStmt resolves a class declaration.
+// This method keeps track of the class declaration and definition.
+func (r *Resolver) resolveClassDeclStmt(stmt *lang.ClassDeclStmt) {
+
+	enclosingClassScope := r.currentClassScope
+	r.currentClassScope = inClass
+
+	r.declare(stmt.Name)
+	r.define(stmt.Name)
+
+	r.beginScope()
+	r.scopes.peek()["this"] = true
+
+	for _, method := range stmt.Methods {
+		declaration := inMethod
+		if method.Name.Lexeme == "init" {
+			declaration = inInitializer
+		}
+		r.resolveFunction(method, declaration)
+	}
+
+	r.endScope()
+
+	r.currentClassScope = enclosingClassScope
+}
+
+// resolveFunDeclStmt resolves a function declaration.
 // This method keeps track of the function declaration and definition.
 func (r *Resolver) resolveFunDeclStmt(stmt *lang.FunDeclStmt) {
 
 	r.declare(stmt.Name)
 	r.define(stmt.Name)
 
-	r.resolveFunction(stmt, function)
+	r.resolveFunction(stmt, inFunction)
 }
 
 // resolveFunction resolves variables in a function body.
 // The function body represents a new scope/environment.
-func (r *Resolver) resolveFunction(stmt *lang.FunDeclStmt, newScopeType scopeType) {
+func (r *Resolver) resolveFunction(stmt *lang.FunDeclStmt, newScope functionScope) {
 
-	enclosingScopeType := r.currentScopeType
-	r.currentScopeType = newScopeType
+	enclosingFunctionScope := r.currentFunctionScope
+	r.currentFunctionScope = newScope
 
 	r.beginScope()
 	for _, param := range stmt.Params {
@@ -145,7 +184,7 @@ func (r *Resolver) resolveFunction(stmt *lang.FunDeclStmt, newScopeType scopeTyp
 	r.resolve(stmt.Body)
 	r.endScope()
 
-	r.currentScopeType = enclosingScopeType
+	r.currentFunctionScope = enclosingFunctionScope
 }
 
 // resolveExpr resolves variable references within an expression.
@@ -168,6 +207,12 @@ func (r *Resolver) resolveExpr(expr lang.Expr) {
 		r.resolveAssignExpr(actualExpr)
 	case *lang.CallExpr:
 		r.resolveCallExpr(actualExpr)
+	case *lang.ThisExpr:
+		r.resolveThisExpr(actualExpr)
+	case *lang.GetExpr:
+		r.resolveGetExpr(actualExpr)
+	case *lang.SetExpr:
+		r.resolveSetExpr(actualExpr)
 	default:
 		panic(fmt.Sprintf("Unknown Expression Type: %T", expr))
 	}
@@ -210,6 +255,23 @@ func (r *Resolver) resolveCallExpr(expr *lang.CallExpr) {
 	}
 }
 
+// resolveGetExpr resolves variables in a get expression.
+// only the receiver is resolved since fields require dynamic
+// dispatch and must be done at runtime.
+func (r *Resolver) resolveGetExpr(expr *lang.GetExpr) {
+
+	r.resolveExpr(expr.Object)
+}
+
+// resolveSetExpr resolves variables in a set expression.
+// only the receiver and the value are resolved since fields
+//  require dynamic dispatch and must be done at runtime.
+func (r *Resolver) resolveSetExpr(expr *lang.SetExpr) {
+
+	r.resolveExpr(expr.Value)
+	r.resolveExpr(expr.Object)
+}
+
 // resolveBinaryExpr resolves variables in a binary expression.
 func (r *Resolver) resolveBinaryExpr(expr *lang.BinaryExpr) {
 
@@ -233,6 +295,17 @@ func (r *Resolver) resolveVarExpr(expr *lang.VarExpr) {
 	r.resolveLocal(expr, expr.Name)
 }
 
+// resolveThisExpr resolves This as a pseudo-variable within
+// methods of a class.
+func (r *Resolver) resolveThisExpr(expr *lang.ThisExpr) {
+
+	if r.currentClassScope == outsideClass {
+		r.reportError(expr.Keyword,
+			"can't use 'this' outside of a class.")
+	}
+	r.resolveLocal(expr, expr.Keyword)
+}
+
 // resolveAssignExpr resolves variables in an assignment expression.
 // search for variable definitions in the current scope and
 // enclosing scopes.
@@ -247,8 +320,7 @@ func (r *Resolver) resolveAssignExpr(expr *lang.AssignExpr) {
 // beginScope starts a new scope for variable references.
 func (r *Resolver) beginScope() {
 
-	sc := make(scope)
-	r.scopes.push(sc)
+	r.scopes.push(make(scope))
 }
 
 // endScope denotes the end of a scope for variable references.
@@ -282,8 +354,7 @@ func (r *Resolver) define(name *lang.Token) {
 		return
 	}
 
-	sc := r.scopes.peek()
-	sc[name.Lexeme] = true
+	r.scopes.peek()[name.Lexeme] = true
 }
 
 // resolveLocal search for the variables in the current scope
@@ -324,12 +395,14 @@ type scopeStack struct {
 
 // push pushes a new scope on the stack.
 func (s *scopeStack) push(sc scope) {
+
 	s.stack = append(s.stack, sc)
 }
 
 // pop returns the latest scope from the stack.
 // the latest scope is also removed from the stack.
 func (s *scopeStack) pop() scope {
+
 	sc := s.stack[len(s.stack)-1]
 	s.stack = s.stack[0 : len(s.stack)-1]
 	return sc
@@ -360,10 +433,21 @@ func (s *scopeStack) get(index int) scope {
 	return s.stack[index]
 }
 
-// scopeType keeps track of what type of scope we are currently in.
-type scopeType int
+// functionScope keeps track if the current scope is a function or
+// a method.
+type functionScope int
 
 const (
-	none scopeType = iota
-	function
+	outsideFunction functionScope = iota
+	inFunction
+	inInitializer
+	inMethod
+)
+
+// classScope keeps track if the current scope is within a class.
+type classScope int
+
+const (
+	outsideClass classScope = iota
+	inClass
 )

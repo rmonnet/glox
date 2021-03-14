@@ -1,0 +1,30 @@
+class Egotist {
+
+    speak() {
+        print "I am  " + this;
+    }
+}
+
+var e = Egotist();
+print e;
+var method = e.speak;
+print method;
+method();
+
+class Cake {
+
+    taste() {
+        var adjective = "delicious";
+        print "The " + this.flavor + " cake is " + adjective + "!";
+    }
+}
+
+var cake = Cake();
+cake.flavor = "German chocolate";
+cake.taste();
+
+var crum = Cake();
+// while report "Undefined field or method"
+crum.taste();
+
+

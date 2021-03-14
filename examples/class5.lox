@@ -1,0 +1,8 @@
+class Foo {
+    init() {
+        print "I am a " + this;
+    }
+}
+
+var foo = Foo();
+print foo.init();
