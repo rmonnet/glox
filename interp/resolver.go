@@ -121,7 +121,7 @@ func (r *Resolver) resolveBlockStmt(stmt *lang.BlockStmt) {
 }
 
 // resolveVarDeclStmt resolves a variable declaration.
-// This method keeps track of the variable declaration and definition.
+// ThisToken method keeps track of the variable declaration and definition.
 func (r *Resolver) resolveVarDeclStmt(stmt *lang.VarDeclStmt) {
 
 	r.declare(stmt.Name)
@@ -134,7 +134,7 @@ func (r *Resolver) resolveVarDeclStmt(stmt *lang.VarDeclStmt) {
 }
 
 // resolveClassDeclStmt resolves a class declaration.
-// This method keeps track of the class declaration and definition.
+// ThisToken method keeps track of the class declaration and definition.
 func (r *Resolver) resolveClassDeclStmt(stmt *lang.ClassDeclStmt) {
 
 	enclosingClassScope := r.currentClassScope
@@ -178,7 +178,7 @@ func (r *Resolver) resolveClassDeclStmt(stmt *lang.ClassDeclStmt) {
 }
 
 // resolveFunDeclStmt resolves a function declaration.
-// This method keeps track of the function declaration and definition.
+// ThisToken method keeps track of the function declaration and definition.
 func (r *Resolver) resolveFunDeclStmt(stmt *lang.FunDeclStmt) {
 
 	r.declare(stmt.Name)
@@ -410,7 +410,7 @@ func (r *Resolver) resolveLocal(expr lang.Expr, name *lang.Token) {
 func (r *Resolver) reportError(token *lang.Token, msg string) {
 
 	var where string
-	if token.Type == lang.End {
+	if token.Type == lang.EndToken {
 		where = "at end"
 	} else {
 		where = "at '" + token.Lexeme + "'"

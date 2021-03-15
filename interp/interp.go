@@ -31,8 +31,8 @@ func New() *Interp {
 // Run runs the lox interpreter on the provided program.
 func (i *Interp) Run(script string) {
 
-	scanner := lang.NewScanner(script)
-	tokens := scanner.ScanTokens()
+	scanner := &lang.Scanner{}
+	tokens := scanner.ScanTokens(script)
 
 	parser := lang.NewParser(tokens)
 	statements := parser.Parse()
@@ -80,7 +80,7 @@ func (e runtimeError) Error() string {
 }
 
 // returnValue represents a return object.
-// This is used in conjunction with panic to unwind the stack
+// ThisToken is used in conjunction with panic to unwind the stack
 // to the point of the function call and return the value.
 type returnValue struct {
 	value interface{}
@@ -325,11 +325,11 @@ func (i *Interp) evaluateLogical(expr *lang.LogicalExpr) interface{} {
 	left := i.evaluate(expr.LeftExpression)
 
 	switch expr.Operator.Type {
-	case lang.Or:
+	case lang.OrToken:
 		if isTruthy(left) {
 			return left
 		}
-	case lang.And:
+	case lang.AndToken:
 		if !isTruthy(left) {
 			return left
 		}
@@ -356,10 +356,10 @@ func (i *Interp) evaluateUnary(expr *lang.UnaryExpr) interface{} {
 	right := i.evaluate(expr.Expression)
 
 	switch expr.Operator.Type {
-	case lang.Minus:
+	case lang.MinusToken:
 		val := toNumber(expr.Operator, right)
 		return -val
-	case lang.Bang:
+	case lang.BangToken:
 		return !isTruthy(right)
 	default:
 		return nil
@@ -375,13 +375,13 @@ func (i *Interp) evaluateBinary(expr *lang.BinaryExpr) interface{} {
 	op := expr.Operator
 
 	switch op.Type {
-	case lang.Minus:
+	case lang.MinusToken:
 		return toNumber(op, left) - toNumber(op, right)
-	case lang.Slash:
+	case lang.SlashToken:
 		return toNumber(op, left) / toNumber(op, right)
-	case lang.Star:
+	case lang.StarToken:
 		return toNumber(op, left) * toNumber(op, right)
-	case lang.Plus:
+	case lang.PlusToken:
 		if isNumber(left) && isNumber(right) {
 			return toNumber(op, left) + toNumber(op, right)
 		}
@@ -393,17 +393,17 @@ func (i *Interp) evaluateBinary(expr *lang.BinaryExpr) interface{} {
 		}
 		panic(runtimeError{expr.Operator,
 			"Operands must be two numbers or at least one string."})
-	case lang.Greater:
+	case lang.GreaterToken:
 		return toNumber(op, left) > toNumber(op, right)
-	case lang.GreaterEqual:
+	case lang.GreaterEqualToken:
 		return toNumber(op, left) >= toNumber(op, right)
-	case lang.Less:
+	case lang.LessToken:
 		return toNumber(op, left) < toNumber(op, right)
-	case lang.LessEqual:
+	case lang.LessEqualToken:
 		return toNumber(op, left) <= toNumber(op, right)
-	case lang.BangEqual:
+	case lang.BangEqualToken:
 		return !isEqual(left, right)
-	case lang.EqualEqual:
+	case lang.EqualEqualToken:
 		return isEqual(left, right)
 	}
 	return nil
@@ -634,7 +634,7 @@ func (i *loxInstance) get(name *lang.Token) interface{} {
 		fmt.Sprintf("Undefined field or method '%s'.", name.Lexeme)})
 }
 
-// set assigns a value to an instance field. If this field
+// set assigns a value to an instance field. IfToken this field
 // is undefined, set adds it to the instance.
 func (i *loxInstance) set(name *lang.Token, value interface{}) {
 

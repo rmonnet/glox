@@ -108,8 +108,8 @@ Precedence rules (lowest to highest):
 | Name       | Operator  | Associate |
 | ---------- | --------- | --------- |
 | Assignment | =         | right     |
-| Or         | or        | left      |
-| And        | and       | left      |
+| OrToken         | or        | left      |
+| AndToken        | and       | left      |
 | Equality   | == !=     | left      |
 | Comparison | > >= < <= | left      |
 | Term       | - +       | left      |

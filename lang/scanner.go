@@ -15,25 +15,24 @@ type Scanner struct {
 	hadError bool
 }
 
-// NewScanner initialize a new lox scanner.
-func NewScanner(source string) *Scanner {
-
-	s := new(Scanner)
-	s.source = []rune(source)
-	s.line = 1
-	return s
-}
-
 // ScanTokens scans the source code and return the list
 // of tokens.
-func (s *Scanner) ScanTokens() []*Token {
+func (s *Scanner) ScanTokens(source string) []*Token {
+
+	// reset the scanner state in case it is reused.
+	s.source = []rune(source)
+	s.tokens = nil
+	s.start = 0
+	s.current = 0
+	s.line = 1
+	s.hadError = false
 
 	for !s.isAtEnd() {
 		s.start = s.current
 		s.scanToken()
 	}
 
-	s.tokens = append(s.tokens, &Token{End, "", s.line})
+	s.tokens = append(s.tokens, &Token{EndToken, "", s.line})
 	return s.tokens
 }
 
@@ -50,48 +49,48 @@ func (s *Scanner) scanToken() {
 	c := s.advance()
 	switch c {
 	case '(':
-		s.addToken(LeftParen)
+		s.addToken(LeftParenToken)
 	case ')':
-		s.addToken(RightParen)
+		s.addToken(RightParenToken)
 	case '{':
-		s.addToken(LeftBrace)
+		s.addToken(LeftBraceToken)
 	case '}':
-		s.addToken(RightBrace)
+		s.addToken(RightBraceToken)
 	case ',':
-		s.addToken(Comma)
+		s.addToken(CommaToken)
 	case '.':
-		s.addToken(Dot)
+		s.addToken(DotToken)
 	case '-':
-		s.addToken(Minus)
+		s.addToken(MinusToken)
 	case '+':
-		s.addToken(Plus)
+		s.addToken(PlusToken)
 	case ';':
-		s.addToken(Semicolon)
+		s.addToken(SemicolonToken)
 	case '*':
-		s.addToken(Star)
+		s.addToken(StarToken)
 	case '!':
 		if s.match('=') {
-			s.addToken(BangEqual)
+			s.addToken(BangEqualToken)
 		} else {
-			s.addToken(Bang)
+			s.addToken(BangToken)
 		}
 	case '=':
 		if s.match('=') {
-			s.addToken(EqualEqual)
+			s.addToken(EqualEqualToken)
 		} else {
-			s.addToken(Equal)
+			s.addToken(EqualToken)
 		}
 	case '<':
 		if s.match('=') {
-			s.addToken(LessEqual)
+			s.addToken(LessEqualToken)
 		} else {
-			s.addToken(Less)
+			s.addToken(LessToken)
 		}
 	case '>':
 		if s.match('=') {
-			s.addToken(GreaterEqual)
+			s.addToken(GreaterEqualToken)
 		} else {
-			s.addToken(Greater)
+			s.addToken(GreaterToken)
 		}
 	case '/':
 		if s.match('/') {
@@ -100,7 +99,7 @@ func (s *Scanner) scanToken() {
 				s.advance()
 			}
 		} else {
-			s.addToken(Slash)
+			s.addToken(SlashToken)
 		}
 	case ' ', '\r', '\t':
 		// ignore whitespace
@@ -141,7 +140,7 @@ func (s *Scanner) string() {
 	// need to consume the closing quote
 	s.advance()
 
-	s.addToken(String)
+	s.addToken(StringToken)
 }
 
 // number consumes a number token from the source.
@@ -162,7 +161,7 @@ func (s *Scanner) number() {
 		s.advance()
 	}
 
-	s.addToken(Number)
+	s.addToken(NumberToken)
 }
 
 // identifier consumes an identifier token from the source.
@@ -177,7 +176,7 @@ func (s *Scanner) identifier() {
 	text := string(s.source[s.start:s.current])
 	tokenType, found := keywords[text]
 	if !found {
-		tokenType = Identifier
+		tokenType = IdentifierToken
 	}
 	s.addToken(tokenType)
 }
@@ -228,7 +227,7 @@ func (s *Scanner) advance() rune {
 }
 
 // match checks the next character in the source
-// is as expected. If the character matches, it is consumed.
+// is as expected. IfToken the character matches, it is consumed.
 func (s *Scanner) match(expected rune) bool {
 
 	if s.isAtEnd() {
@@ -270,20 +269,20 @@ func (s *Scanner) addToken(tokenType TokenType) {
 
 // keywords is a map including all lox reserved keywords
 var keywords = map[string]TokenType{
-	"and":    And,
-	"class":  Class,
-	"else":   Else,
-	"false":  False,
-	"for":    For,
-	"fun":    Fun,
-	"if":     If,
-	"nil":    Nil,
-	"or":     Or,
-	"print":  Print,
-	"return": Return,
-	"super":  Super,
-	"this":   This,
-	"true":   True,
-	"var":    Var,
-	"while":  While,
+	"and":    AndToken,
+	"class":  ClassToken,
+	"else":   ElseToken,
+	"false":  FalseToken,
+	"for":    ForToken,
+	"fun":    FunToken,
+	"if":     IfToken,
+	"nil":    NilToken,
+	"or":     OrToken,
+	"print":  PrintToken,
+	"return": ReturnToken,
+	"super":  SuperToken,
+	"this":   ThisToken,
+	"true":   TrueToken,
+	"var":    VarToken,
+	"while":  WhileToken,
 }

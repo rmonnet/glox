@@ -23,7 +23,7 @@ func newEnv(enclosing *env) *env {
 }
 
 // define binds a variable name and its value for the environment.
-// If the variable was already bound, the name value is bound
+// IfToken the variable was already bound, the name value is bound
 // instead and the old value is discarded.
 func (e *env) define(name string, value interface{}) {
 

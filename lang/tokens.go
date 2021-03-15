@@ -1,91 +1,96 @@
-// Package lang contains definition for the lox
+// Package lang contains definitions for the lox
 // language grammar.
+// That includes tokens, AST Nodes, the scanner to generate
+// tokens and the parser to generate an AST tree.
 package lang
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // TokenType represents the type of a lox token.
 type TokenType int
 
 const (
-	// LeftParen represents a '(' token.
-	LeftParen TokenType = iota
-	// RightParen represents a ')' token.
-	RightParen
-	// LeftBrace represents a '{' token.
-	LeftBrace
-	// RightBrace represents a '}' token.
-	RightBrace
-	// Comma represents a ',' token.
-	Comma
-	// Dot represents a '.' token.
-	Dot
-	// Minus represents a '-' token.
-	Minus
-	// Plus represents a '+' token.
-	Plus
-	// Semicolon represents a ';' token.
-	Semicolon
-	// Slash represents a '/' token.
-	Slash
-	// Star represents a '*' token.
-	Star
-	// Bang represents a '!' token.
-	Bang
-	// BangEqual represents a '!=' token.
-	BangEqual
-	// Equal represents an '=' token.
-	Equal
-	// EqualEqual represents an '==' token.
-	EqualEqual
-	// Greater represents a '>' token.
-	Greater
-	// GreaterEqual represents a '>=' token.
-	GreaterEqual
-	// Less represents a '<'' token.
-	Less
-	// LessEqual represents a '<=' token.
-	LessEqual
-	// Identifier represents any identifier token.
-	Identifier
-	// String represents any string token.
-	String
-	// Number represents any number token.
-	Number
-	// And represents an 'and' token.
-	And
-	// Class represents a 'class' token.
-	Class
-	// Else represents an 'else' token.
-	Else
-	// False represents a 'false' token.
-	False
-	// Fun represents a 'fun' token.
-	Fun
-	// For represents a 'for' token.
-	For
-	// If represents an 'if' token.
-	If
-	// Nil represents a 'nil' token.
-	Nil
-	// Or represents an 'or' token.
-	Or
-	// Print represents a 'print' token.
-	Print
-	// Return represents a 'return' token.
-	Return
-	// Super represents a 'super' token.
-	Super
-	// This represents a 'this' token.
-	This
-	// True represents a 'true' token.
-	True
-	// Var represents a 'var' token.
-	Var
-	// While represents a 'while' token.
-	While
-	// End is a special token that represents the end of stream.
-	End
+	// EndToken is a special token that represents the end of stream.
+	EndToken TokenType = iota
+	// AndToken represents an 'and' token.
+	AndToken
+	// BangToken represents a '!' token.
+	BangToken
+	// BangEqualToken represents a '!=' token.
+	BangEqualToken
+	// ClassToken represents a 'class' token.
+	ClassToken
+	// CommaToken represents a ',' token.
+	CommaToken
+	// DotToken represents a '.' token.
+	DotToken
+	// ElseToken represents an 'else' token.
+	ElseToken
+	// EqualToken represents an '=' token.
+	EqualToken
+	// EqualEqualToken represents an '==' token.
+	EqualEqualToken
+	// FalseToken represents a 'false' token.
+	FalseToken
+	// FunToken represents a 'fun' token.
+	FunToken
+	// ForToken represents a 'for' token.
+	ForToken
+	// GreaterToken represents a '>' token.
+	GreaterToken
+	// GreaterEqualToken represents a '>=' token.
+	GreaterEqualToken
+	// IdentifierToken represents any identifier token.
+	IdentifierToken
+	// IfToken represents an 'if' token.
+	IfToken
+	// LeftBraceToken represents a '{' token.
+	LeftBraceToken
+	// LeftParenToken represents a '(' token.
+	LeftParenToken
+	// LessToken represents a '<'' token.
+	LessToken
+	// LessEqualToken represents a '<=' token.
+	LessEqualToken
+	// MinusToken represents a '-' token.
+	MinusToken
+	// NilToken represents a 'nil' token.
+	NilToken
+	// NumberToken represents any number token.
+	NumberToken
+	// OrToken represents an 'or' token.
+	OrToken
+	// PlusToken represents a '+' token.
+	PlusToken
+	// PrintToken represents a 'print' token.
+	PrintToken
+	// ReturnToken represents a 'return' token.
+	ReturnToken
+	// RightBraceToken represents a '}' token.
+	RightBraceToken
+	// RightParenToken represents a ')' token.
+	RightParenToken
+	// SemicolonToken represents a ';' token.
+	SemicolonToken
+	// SlashToken represents a '/' token.
+	SlashToken
+	// StarToken represents a '*' token.
+	StarToken
+	// StringToken represents any string token.
+	StringToken
+	// SuperToken represents a 'super' token.
+	SuperToken
+	// ThisToken represents a 'this' token.
+	ThisToken
+	// TrueToken represents a 'true' token.
+	TrueToken
+	// VarToken represents a 'var' token.
+	VarToken
+	// WhileToken represents a 'while' token.
+	WhileToken
 )
 
 // Token represents a lox token.
@@ -95,94 +100,105 @@ type Token struct {
 	Line   int
 }
 
-// String returns the string representation of a Token
+// String returns the string representation of a Token.
 func (t *Token) String() string {
-	return fmt.Sprintf("%d %s", t.Type, t.Lexeme)
+
+	switch t.Type {
+	case IdentifierToken:
+		return fmt.Sprintf("Identifier(%s)", t.Lexeme)
+	case NumberToken:
+		return fmt.Sprintf("Number(%s)", t.Lexeme)
+	case StringToken:
+		value := strings.Trim(t.Lexeme, "\"")
+		return fmt.Sprintf("String(%s)", value)
+	default:
+		return t.Type.String()
+	}
 }
 
-// String return the string representation of a TokenType
+// String return the string representation of a TokenType.
 func (t TokenType) String() string {
 
 	switch t {
-	case LeftParen:
-		return "("
-	case RightParen:
-		return ")"
-	case LeftBrace:
-		return "{"
-	case RightBrace:
-		return "}"
-	case Comma:
-		return ","
-	case Dot:
-		return "."
-	case Minus:
-		return "-"
-	case Plus:
-		return "+"
-	case Semicolon:
-		return ";"
-	case Slash:
-		return "/"
-	case Star:
-		return "*"
-	case Bang:
-		return "!"
-	case BangEqual:
-		return "!="
-	case Equal:
-		return "="
-	case EqualEqual:
-		return "=="
-	case Greater:
-		return ">"
-	case GreaterEqual:
-		return ">="
-	case Less:
-		return "<"
-	case LessEqual:
-		return "<="
-	case Identifier:
-		return "identifier"
-	case String:
-		return "string"
-	case Number:
-		return "number"
-	case And:
+	case EndToken:
+		return "end-of-stream"
+	case AndToken:
 		return "and"
-	case Class:
+	case BangToken:
+		return "!"
+	case BangEqualToken:
+		return "!="
+	case ClassToken:
 		return "class"
-	case Else:
+	case CommaToken:
+		return ","
+	case DotToken:
+		return "."
+	case ElseToken:
 		return "else"
-	case False:
+	case EqualToken:
+		return "="
+	case EqualEqualToken:
+		return "=="
+	case FalseToken:
 		return "false"
-	case Fun:
+	case FunToken:
 		return "fun"
-	case For:
+	case ForToken:
 		return "for"
-	case If:
+	case GreaterToken:
+		return ">"
+	case GreaterEqualToken:
+		return ">="
+	case IdentifierToken:
+		return "identifier"
+	case IfToken:
 		return "if"
-	case Nil:
+	case LeftBraceToken:
+		return "{"
+	case LeftParenToken:
+		return "("
+	case LessToken:
+		return "<"
+	case LessEqualToken:
+		return "<="
+	case MinusToken:
+		return "-"
+	case NilToken:
 		return "nil"
-	case Or:
+	case NumberToken:
+		return "number"
+	case PlusToken:
+		return "+"
+	case RightParenToken:
+		return ")"
+	case RightBraceToken:
+		return "}"
+	case SemicolonToken:
+		return ";"
+	case SlashToken:
+		return "/"
+	case StarToken:
+		return "*"
+	case StringToken:
+		return "string"
+	case OrToken:
 		return "or"
-	case Print:
+	case PrintToken:
 		return "print"
-	case Return:
+	case ReturnToken:
 		return "return"
-	case Super:
+	case SuperToken:
 		return "super"
-	case This:
+	case ThisToken:
 		return "this"
-	case True:
+	case TrueToken:
 		return "true"
-	case Var:
+	case VarToken:
 		return "var"
-	case While:
+	case WhileToken:
 		return "while"
-	case End:
-		return "end"
 	default:
-		return "N/A"
+		return "invalid-token"
 	}
 }
