@@ -1,0 +1,7 @@
+// this should raise an error
+// superclass must be a class
+var NotAClass = "I am not a class";
+
+class Subclass < NotAClass {
+
+}

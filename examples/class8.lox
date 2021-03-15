@@ -1,0 +1,4 @@
+// this should raise: a class can't inherit from itself.
+class A < A {
+
+}

@@ -12,8 +12,9 @@ type ExprStmt struct {
 
 // ClassDeclStmt represents a class definition in lox AST.
 type ClassDeclStmt struct {
-	Name    *Token
-	Methods []*FunDeclStmt
+	Name       *Token
+	Superclass *VarExpr
+	Methods    []*FunDeclStmt
 }
 
 // FunDeclStmt represents a function definition in lox AST.
@@ -100,10 +101,17 @@ type SetExpr struct {
 	Value  Expr
 }
 
-// ThisExpr represents the pseudo-variable this representing
+// ThisExpr represents the pseudo-variable "this" representing
 // a class instance in lox AST.
 type ThisExpr struct {
 	Keyword *Token
+}
+
+// SuperExpr represents the pseudo-variable "super" representing
+// a class superclass in lox AST.
+type SuperExpr struct {
+	Keyword *Token
+	Method  *Token
 }
 
 // CallExpr represents a function call in lox AST.
@@ -140,6 +148,7 @@ func (*CallExpr) exprNode()     {}
 func (*GetExpr) exprNode()      {}
 func (*SetExpr) exprNode()      {}
 func (*ThisExpr) exprNode()     {}
+func (*SuperExpr) exprNode()    {}
 func (*GroupingExpr) exprNode() {}
 func (*VarExpr) exprNode()      {}
 

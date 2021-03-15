@@ -143,6 +143,20 @@ func (r *Resolver) resolveClassDeclStmt(stmt *lang.ClassDeclStmt) {
 	r.declare(stmt.Name)
 	r.define(stmt.Name)
 
+	// it is an error if the class superclass is the class itself.
+	if stmt.Superclass != nil &&
+		stmt.Name.Lexeme == stmt.Superclass.Name.Lexeme {
+		r.reportError(stmt.Superclass.Name,
+			"A class can't inherit from itself.")
+	}
+
+	if stmt.Superclass != nil {
+		r.currentClassScope = inSubClass
+		r.resolveExpr(stmt.Superclass)
+		r.beginScope()
+		r.scopes.peek()["super"] = true
+	}
+
 	r.beginScope()
 	r.scopes.peek()["this"] = true
 
@@ -155,6 +169,10 @@ func (r *Resolver) resolveClassDeclStmt(stmt *lang.ClassDeclStmt) {
 	}
 
 	r.endScope()
+
+	if stmt.Superclass != nil {
+		r.endScope()
+	}
 
 	r.currentClassScope = enclosingClassScope
 }
@@ -209,6 +227,8 @@ func (r *Resolver) resolveExpr(expr lang.Expr) {
 		r.resolveCallExpr(actualExpr)
 	case *lang.ThisExpr:
 		r.resolveThisExpr(actualExpr)
+	case *lang.SuperExpr:
+		r.resolveSuperExpr(actualExpr)
 	case *lang.GetExpr:
 		r.resolveGetExpr(actualExpr)
 	case *lang.SetExpr:
@@ -295,7 +315,7 @@ func (r *Resolver) resolveVarExpr(expr *lang.VarExpr) {
 	r.resolveLocal(expr, expr.Name)
 }
 
-// resolveThisExpr resolves This as a pseudo-variable within
+// resolveThisExpr resolves 'this' as a pseudo-variable within
 // methods of a class.
 func (r *Resolver) resolveThisExpr(expr *lang.ThisExpr) {
 
@@ -303,6 +323,21 @@ func (r *Resolver) resolveThisExpr(expr *lang.ThisExpr) {
 		r.reportError(expr.Keyword,
 			"can't use 'this' outside of a class.")
 	}
+	r.resolveLocal(expr, expr.Keyword)
+}
+
+// resolveSuperExpr resolves 'super' as a pseudo-variable
+// within methods of a class.
+func (r *Resolver) resolveSuperExpr(expr *lang.SuperExpr) {
+
+	if r.currentClassScope == outsideClass {
+		r.reportError(expr.Keyword,
+			"Can't use 'super' outside a class.")
+	} else if r.currentClassScope != inSubClass {
+		r.reportError(expr.Keyword,
+			"Can't use 'super' in a class with no superclass.")
+	}
+
 	r.resolveLocal(expr, expr.Keyword)
 }
 
@@ -449,5 +484,6 @@ type classScope int
 
 const (
 	outsideClass classScope = iota
+	inSubClass
 	inClass
 )

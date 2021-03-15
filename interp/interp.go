@@ -205,17 +205,36 @@ func (i *Interp) executeValDeclStmt(stmt *lang.VarDeclStmt) {
 // executeClassDeclStmt executes a class declaration.
 func (i *Interp) executeClassDeclStmt(stmt *lang.ClassDeclStmt) {
 
+	// the variable referencing the superclass must evaluate to
+	// a class.
+	var superclass *loxClass
+	if stmt.Superclass != nil {
+		sc := i.evaluate(stmt.Superclass)
+		var ok bool
+		if superclass, ok = sc.(*loxClass); !ok {
+			panic(runtimeError{stmt.Superclass.Name,
+				"Superclass must be a class."})
+		}
+	}
+
 	// separate definition from assignment to allow
 	// reference to the class inside its own methods.
 	i.env.define(stmt.Name.Lexeme, nil)
 
+	environment := i.env
+	if stmt.Superclass != nil {
+		environment = newEnv(i.env)
+		environment.define("super", superclass)
+	}
+
 	methods := make(map[string]*loxFunction)
 	for _, method := range stmt.Methods {
 		isInitializer := method.Name.Lexeme == "init"
-		function := &loxFunction{method, i.env, isInitializer}
+		function := &loxFunction{method, environment, isInitializer}
 		methods[method.Name.Lexeme] = function
 	}
-	class := &loxClass{stmt.Name.Lexeme, methods}
+
+	class := &loxClass{stmt.Name.Lexeme, superclass, methods}
 
 	i.env.assign(stmt.Name, class)
 }
@@ -246,6 +265,8 @@ func (i *Interp) evaluate(expr lang.Expr) interface{} {
 		return i.evaluateVar(actualExpr)
 	case *lang.ThisExpr:
 		return i.evaluateThis(actualExpr)
+	case *lang.SuperExpr:
+		return i.evaluateSuper(actualExpr)
 	case *lang.AssignExpr:
 		return i.evaluateAssign(actualExpr)
 	case *lang.CallExpr:
@@ -270,6 +291,28 @@ func (i *Interp) evaluateVar(expr *lang.VarExpr) interface{} {
 func (i *Interp) evaluateThis(expr *lang.ThisExpr) interface{} {
 
 	return i.lookupVariable(expr.Keyword, expr)
+}
+
+// evaluateSuper evaluates the "super" pseudo-variable and returns
+// the method in the super class it is pointing to.
+func (i *Interp) evaluateSuper(expr *lang.SuperExpr) interface{} {
+
+	distance := i.locals[expr]
+	superclass := i.env.getAt(distance, "super").(*loxClass)
+
+	// we need to bound the method to 'this' in the 'calling' environment
+	// not in the 'super' environment.
+	// 'this' environment is always directly below 'super' environment.
+	this := i.env.getAt(distance-1, "this").(*loxInstance)
+
+	method, ok := superclass.findMethod(expr.Method.Lexeme)
+	if ok {
+		return method.bind(this)
+	}
+
+	panic(runtimeError{expr.Method,
+		fmt.Sprintf("Undefined method '%s'.", expr.Method.Lexeme)})
+
 }
 
 // evaluateLogical evaluates a Logical expression and return
@@ -505,8 +548,9 @@ func (f *loxFunction) String() string {
 }
 
 type loxClass struct {
-	Name    string
-	Methods map[string]*loxFunction
+	Name       string
+	Superclass *loxClass
+	Methods    map[string]*loxFunction
 }
 
 // call creates an instance of a lox class.
@@ -536,7 +580,15 @@ func (c *loxClass) arity() int {
 func (c *loxClass) findMethod(name string) (*loxFunction, bool) {
 
 	method, ok := c.Methods[name]
-	return method, ok
+	if ok {
+		return method, true
+	}
+
+	if c.Superclass != nil {
+		return c.Superclass.findMethod(name)
+	}
+
+	return nil, false
 }
 
 // string returns a string representation of a lox class.

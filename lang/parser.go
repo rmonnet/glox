@@ -83,6 +83,12 @@ func (p *Parser) classDeclaration() Stmt {
 
 	name := p.consume(Identifier, "Expect class name.")
 
+	var superclass *VarExpr
+	if p.match(Less) {
+		p.consume(Identifier, "Expect superclass name.")
+		superclass = &VarExpr{p.previous()}
+	}
+
 	p.consume(LeftBrace, "Expect '{' before class body.")
 
 	var methods []*FunDeclStmt
@@ -93,7 +99,7 @@ func (p *Parser) classDeclaration() Stmt {
 
 	p.consume(RightBrace, "Expect '}' after class body.")
 
-	return &ClassDeclStmt{name, methods}
+	return &ClassDeclStmt{name, superclass, methods}
 }
 
 // funDeclaration implements the rule for a lox function declaration.
@@ -503,6 +509,12 @@ func (p *Parser) primary() Expr {
 		// a single quote at the beginning and end anyway.
 		s := strings.Trim(p.previous().Lexeme, "\"")
 		return &Lit{s}
+	}
+	if p.match(Super) {
+		keyword := p.previous()
+		p.consume(Dot, "Expect '.' after 'super'.")
+		method := p.consume(Identifier, "Expect superclass method name")
+		return &SuperExpr{keyword, method}
 	}
 	if p.match(This) {
 		return &ThisExpr{p.previous()}
