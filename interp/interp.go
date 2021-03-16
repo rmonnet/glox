@@ -4,6 +4,8 @@ package interp
 
 import (
 	"fmt"
+	"io"
+	"os"
 
 	"gitlab.com/rcmonnet/glox/lang"
 )
@@ -15,16 +17,28 @@ type Interp struct {
 	globalEnv       *env
 	env             *env
 	locals          map[lang.Expr]int
+	out             io.Writer
+	errOut          io.Writer
 }
 
 // New creates a new interpreter.
-func New() *Interp {
+func New(out, errOut io.Writer) *Interp {
 
 	interp := &Interp{}
 	interp.globalEnv = newEnv(nil)
 	interp.globalEnv.define("clock", clock{})
 	interp.env = interp.globalEnv
 	interp.locals = make(map[lang.Expr]int)
+	if out == nil {
+		interp.out = os.Stdout
+	} else {
+		interp.out = out
+	}
+	if errOut == nil {
+		interp.errOut = os.Stderr
+	} else {
+		interp.errOut = errOut
+	}
 	return interp
 }
 
@@ -32,10 +46,12 @@ func New() *Interp {
 func (i *Interp) Run(script string) {
 
 	scanner := &lang.Scanner{}
+	scanner.RedirectErrors(i.errOut)
 	tokens := scanner.ScanTokens(script)
 
-	parser := lang.NewParser(tokens)
-	statements := parser.Parse()
+	parser := &lang.Parser{}
+	parser.RedirectErrors(i.errOut)
+	statements := parser.Parse(tokens)
 
 	if scanner.HadError() || parser.HadError() {
 		i.hadCompileError = true
@@ -43,6 +59,7 @@ func (i *Interp) Run(script string) {
 	}
 
 	resolver := NewResolver(i)
+	resolver.RedirectErrors(i.errOut)
 	resolver.resolve(statements)
 
 	if resolver.hadError {
@@ -188,7 +205,7 @@ func (i *Interp) executeExprStmt(stmt *lang.ExprStmt) {
 func (i *Interp) executePrintStmt(stmt *lang.PrintStmt) {
 
 	value := i.evaluate(stmt.Expression)
-	fmt.Println(stringify(value))
+	fmt.Fprintln(i.out, stringify(value))
 }
 
 // executeValDeclStmt executes a variable declaration.

@@ -1,6 +1,7 @@
 package lang
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -32,7 +33,7 @@ func TestScanNumbers(t *testing.T) {
 
 	t.Run("Parse float", func(t *testing.T) {
 
-		scanValidToken(t, "Number(12.34)", "12.34")
+		scanValidToken(t, "Number(12.349)", "12.349")
 	})
 
 	// Note: floats starting with '.' or ending with '.'
@@ -52,6 +53,25 @@ func TestScanNumbers(t *testing.T) {
 
 		expect := []string{"Number(1234)", ".", "end-of-stream"}
 		matchTokens(t, expect, "1234.")
+	})
+
+}
+
+func TestScanStrings(t *testing.T) {
+
+	t.Run("Parse regular string", func(t *testing.T) {
+
+		scanValidToken(t, "String(hello world)", "\"hello world\"")
+	})
+
+	t.Run("Parse multiline string", func(t *testing.T) {
+
+		scanValidToken(t, "String(hello\nworld)", "\"hello\nworld\"")
+	})
+
+	t.Run("Parse unterminated string", func(t *testing.T) {
+
+		scanInvalidToken(t, "\"helloworld")
 	})
 
 }
@@ -109,6 +129,8 @@ func scanValidToken(t *testing.T, expect string, script string) {
 func scanInvalidToken(t *testing.T, script string) {
 
 	scanner := &Scanner{}
+	errOut := &strings.Builder{}
+	scanner.RedirectErrors(errOut)
 	tokens := scanner.ScanTokens(script)
 	if !scanner.HadError() {
 		t.Error("Expect Error was not reported by scanner")

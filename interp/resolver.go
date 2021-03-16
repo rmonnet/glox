@@ -2,6 +2,7 @@ package interp
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"gitlab.com/rcmonnet/glox/lang"
@@ -15,6 +16,14 @@ type Resolver struct {
 	currentFunctionScope functionScope
 	currentClassScope    classScope
 	hadError             bool
+	errOut               io.Writer
+}
+
+// RedirectErrors switches the file errors are written to.
+// Errors go to stderr by default.
+func (r *Resolver) RedirectErrors(errOut io.Writer) {
+
+	r.errOut = errOut
 }
 
 // NewResolver creates a new resolver and associate it
@@ -26,6 +35,10 @@ func NewResolver(i *Interp) *Resolver {
 
 // resolve goes through an AST tree and resolve variable references.
 func (r *Resolver) resolve(statements []lang.Stmt) {
+
+	if r.errOut == nil {
+		r.errOut = os.Stderr
+	}
 
 	for _, statement := range statements {
 		r.resolveStmt(statement)
@@ -415,7 +428,7 @@ func (r *Resolver) reportError(token *lang.Token, msg string) {
 	} else {
 		where = "at '" + token.Lexeme + "'"
 	}
-	fmt.Fprintf(os.Stderr, "[line %d] Error %s: %s\n",
+	fmt.Fprintf(r.errOut, "[line %d] Error %s: %s\n",
 		token.Line, where, msg)
 	r.hadError = true
 }

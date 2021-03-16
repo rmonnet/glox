@@ -2,6 +2,7 @@ package lang
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -16,19 +17,26 @@ type Parser struct {
 	tokens   []*Token
 	current  int
 	hadError bool
+	errOut   io.Writer
 }
 
-// NewParser creates a lox parser, using the output
-// of a scanner.
-func NewParser(tokens []*Token) *Parser {
+// RedirectErrors switches the file errors are written to.
+// Errors go to stderr by default.
+func (p *Parser) RedirectErrors(errOut io.Writer) {
 
-	p := new(Parser)
-	p.tokens = tokens
-	return p
+	p.errOut = errOut
 }
 
 // Parse parses the stream of tokens into an AST.
-func (p *Parser) Parse() []Stmt {
+func (p *Parser) Parse(tokens []*Token) []Stmt {
+
+	// reset the Parser in case it is reused.
+	p.tokens = tokens
+	p.current = 0
+	p.hadError = false
+	if p.errOut == nil {
+		p.errOut = os.Stderr
+	}
 
 	var statements []Stmt
 	for !p.isAtEnd() {
@@ -213,9 +221,10 @@ func (p *Parser) forStatement() Stmt {
 	if increment != nil {
 		body = newBlockStmt(body, &ExprStmt{increment})
 	}
-	if condition != nil {
-		body = &WhileStmt{condition, body}
+	if condition == nil {
+		condition = &Lit{true}
 	}
+	body = &WhileStmt{condition, body}
 	if initializer != nil {
 		body = newBlockStmt(initializer, body)
 	}
@@ -630,7 +639,7 @@ func (p *Parser) reportError(token *Token, msg string) {
 		where = "at '" + token.Lexeme + "'"
 	}
 
-	fmt.Fprintf(os.Stderr, "[line %d] Error %s: %s\n",
+	fmt.Fprintf(p.errOut, "[line %d] Error %s: %s\n",
 		token.Line, where, msg)
 	p.hadError = true
 }

@@ -41,7 +41,7 @@ func runFile(filename string) {
 		fmt.Println("unable to read ", filename)
 		os.Exit(exDataErr)
 	}
-	interp := interp.New()
+	interp := interp.New(os.Stdout, os.Stderr)
 	interp.Run(string(script))
 	if interp.HadCompileError() {
 		os.Exit(exDataErr)
@@ -55,7 +55,7 @@ func runFile(filename string) {
 func runPrompt() {
 
 	scanner := bufio.NewScanner(os.Stdin)
-	interp := interp.New()
+	interp := interp.New(os.Stdout, os.Stderr)
 	for {
 		fmt.Print("> ")
 		if !scanner.Scan() {

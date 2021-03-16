@@ -2,6 +2,7 @@ package lang
 
 import (
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -13,6 +14,14 @@ type Scanner struct {
 	current  int
 	line     int
 	hadError bool
+	errOut   io.Writer
+}
+
+// RedirectErrors switches the file errors are written to.
+// Errors go to stderr by default.
+func (s *Scanner) RedirectErrors(errOut io.Writer) {
+
+	s.errOut = errOut
 }
 
 // ScanTokens scans the source code and return the list
@@ -26,6 +35,9 @@ func (s *Scanner) ScanTokens(source string) []*Token {
 	s.current = 0
 	s.line = 1
 	s.hadError = false
+	if s.errOut == nil {
+		s.errOut = os.Stderr
+	}
 
 	for !s.isAtEnd() {
 		s.start = s.current
@@ -44,6 +56,7 @@ func (s *Scanner) HadError() bool {
 	return s.hadError
 }
 
+// scanToken scans the new token in the script.
 func (s *Scanner) scanToken() {
 
 	c := s.advance()
@@ -145,7 +158,9 @@ func (s *Scanner) string() {
 
 // number consumes a number token from the source.
 // numbers are integers or simple floating point numbers
-// (no exponent). Numbers cannot start or end with a dot.
+// (no exponent). Numbers cannot start or end with a dot,
+// in that case, they will be parsed as two tokens (a number)
+// and a dot).
 func (s *Scanner) number() {
 
 	for isDigit(s.peek()) {
@@ -174,17 +189,18 @@ func (s *Scanner) identifier() {
 	}
 
 	text := string(s.source[s.start:s.current])
-	tokenType, found := keywords[text]
-	if !found {
+	tokenType, ok := keywords[text]
+	if !ok {
 		tokenType = IdentifierToken
 	}
+
 	s.addToken(tokenType)
 }
 
 // isDigit checks if the character is a digit
 func isDigit(c rune) bool {
 
-	return c >= '0' && c < '9'
+	return c >= '0' && c <= '9'
 }
 
 // isAlpha checks if the character is a letter
@@ -207,7 +223,7 @@ func isAlphaNumeric(c rune) bool {
 // reportError reports an error during interpretation
 func (s *Scanner) reportError(message string) {
 
-	fmt.Fprintf(os.Stderr, "[line %d] Error: %s\n",
+	fmt.Fprintf(s.errOut, "[line %d] Error: %s\n",
 		s.line, message)
 	s.hadError = true
 }

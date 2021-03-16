@@ -93,29 +93,6 @@ const (
 	WhileToken
 )
 
-// Token represents a lox token.
-type Token struct {
-	Type   TokenType
-	Lexeme string
-	Line   int
-}
-
-// String returns the string representation of a Token.
-func (t *Token) String() string {
-
-	switch t.Type {
-	case IdentifierToken:
-		return fmt.Sprintf("Identifier(%s)", t.Lexeme)
-	case NumberToken:
-		return fmt.Sprintf("Number(%s)", t.Lexeme)
-	case StringToken:
-		value := strings.Trim(t.Lexeme, "\"")
-		return fmt.Sprintf("String(%s)", value)
-	default:
-		return t.Type.String()
-	}
-}
-
 // String return the string representation of a TokenType.
 func (t TokenType) String() string {
 
@@ -200,5 +177,28 @@ func (t TokenType) String() string {
 		return "while"
 	default:
 		return "invalid-token"
+	}
+}
+
+// Token represents a lox token.
+type Token struct {
+	Type   TokenType
+	Lexeme string
+	Line   int
+}
+
+// String returns the string representation of a Token.
+func (t *Token) String() string {
+
+	switch t.Type {
+	case IdentifierToken:
+		return fmt.Sprintf("Identifier(%s)", t.Lexeme)
+	case NumberToken:
+		return fmt.Sprintf("Number(%s)", t.Lexeme)
+	case StringToken:
+		value := strings.Trim(t.Lexeme, "\"")
+		return fmt.Sprintf("String(%s)", value)
+	default:
+		return t.Type.String()
 	}
 }

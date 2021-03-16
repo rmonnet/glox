@@ -22,6 +22,7 @@ class Cake {
 var cake = Cake();
 cake.flavor = "German chocolate";
 cake.taste();
+print "cake flavor = " + cake.flavor;
 
 var crum = Cake();
 // while report "Undefined field or method"
