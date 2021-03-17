@@ -7,23 +7,25 @@ The first version literally follows the book and doesn't attempt to use go speci
 
 The lox grammar is defined [here](grammar.md).
 
-The `lox/lang` package includes the AST (ast.go),
+The `lox/lang` package includes the AST nodes (ast.go),
 the tokens (tokens.go), scanner (scanner.go)
 and parser (parser.go). The scanner takes a script
 as `string` and returns a slice of tokens (`[]*Tokens`).
 The parser takes a slice of tokens and returns a slice of AST
 nodes (`[]Stmt`).
 
-The `lox/interp` package includes the interpreter itself (interp.go) and the resolver (resolver.go). The resolver
-performs static analysis. It could be seen as being part
-of the `lang` package since it checks for compile errors 
+The `lox/interp` package includes the interpreter itself (interp.go) and the resolver (resolver.go).
+
+The resolver performs static analysis. It could have been part
+of the `lang` package since it checks for compile errors
 but it is bundled with the interpreter in the original text.
-It also has one direct call to the interpreter (`Interp.Resolve()`) which makes it dependent on the `interp` package.
+It also has one direct call to the interpreter (`Interp.Resolve()`)
+which makes it dependent on the `interp` package.
 
 There are unit tests for the low level `lang` package
 and the interpreter itself. The interpreter tests are
-written as go testable example since it makes it very 
-readable. Each test consists of a lox script and the 
+written as go testable example since it makes them very
+readable. Each test consists of a lox script and the
 expected results as `// Ouput:` comments.
 
 The main deviations from the original java implementation
@@ -31,7 +33,7 @@ described in the [crafting interpreters](https://craftinginterpreters.com) are:
 
 - The AST statements (`lang.Stmt`) and expressions (`lang.Expr`) do not use the visitor pattern as in the java code.
 - The java code uses `Object` for the dynamic values in expressions. The go code uses `interface{}`
-- The AST Nodes implement `PrettyPrint()` which allows to pretty print any AST tree without special package. 
+- The AST Nodes implement `PrettyPrint()` which allows to pretty print any AST tree without special package.
 
 # Installation
 
@@ -44,7 +46,7 @@ mostly taken from the original text.
 
 # Build the project
 
-You can also install the source code on your machine by typing:
+You can install the source code on your machine by typing:
 
 ```
 git clone github.com/rmonnet/glox`
