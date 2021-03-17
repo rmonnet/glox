@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-// Scanner represents a lox scanner
+// Scanner represents a lox scanner.
 type Scanner struct {
 	source   []rune
 	tokens   []*Token
@@ -28,7 +28,7 @@ func (s *Scanner) RedirectErrors(errOut io.Writer) {
 // of tokens.
 func (s *Scanner) ScanTokens(source string) []*Token {
 
-	// reset the scanner state in case it is reused.
+	// Reset the scanner state in case it is reused.
 	s.source = []rune(source)
 	s.tokens = nil
 	s.start = 0
@@ -197,14 +197,14 @@ func (s *Scanner) identifier() {
 	s.addToken(tokenType)
 }
 
-// isDigit checks if the character is a digit
+// isDigit checks if the character is a digit.
 func isDigit(c rune) bool {
 
 	return c >= '0' && c <= '9'
 }
 
-// isAlpha checks if the character is a letter
-// lox only supports ASCII letters
+// isAlpha checks if the character is a letter.
+// Lox only supports ASCII letters.
 func isAlpha(c rune) bool {
 
 	return (c >= 'a' && c <= 'z') ||
@@ -218,7 +218,9 @@ func isAlphaNumeric(c rune) bool {
 	return isAlpha(c) || isDigit(c)
 }
 
+// ------------------
 // Helper functions
+// ------------------
 
 // reportError reports an error during interpretation
 func (s *Scanner) reportError(message string) {
@@ -249,9 +251,11 @@ func (s *Scanner) match(expected rune) bool {
 	if s.isAtEnd() {
 		return false
 	}
+
 	if s.source[s.current] != expected {
 		return false
 	}
+
 	s.current++
 	return true
 }
@@ -263,6 +267,7 @@ func (s *Scanner) peek() rune {
 	if s.isAtEnd() {
 		return 0
 	}
+
 	return s.source[s.current]
 }
 
