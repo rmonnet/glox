@@ -8,7 +8,7 @@ import (
 	"gitlab.com/rcmonnet/glox/lang"
 )
 
-// The Resolver type provides operations to resolve variables in
+// The Resolver type provides operations to Resolve variables in
 // a lox AST.
 type Resolver struct {
 	interp               *Interp
@@ -33,8 +33,8 @@ func NewResolver(i *Interp) *Resolver {
 	return &Resolver{interp: i}
 }
 
-// resolve goes through an AST tree and resolve variable references.
-func (r *Resolver) resolve(statements []lang.Stmt) {
+// Resolve goes through an AST tree and Resolve variable references.
+func (r *Resolver) Resolve(statements []lang.Stmt) {
 
 	if r.errOut == nil {
 		r.errOut = os.Stderr
@@ -129,7 +129,7 @@ func (r *Resolver) resolveIfStmt(stmt *lang.IfStmt) {
 func (r *Resolver) resolveBlockStmt(stmt *lang.BlockStmt) {
 
 	r.beginScope()
-	r.resolve(stmt.Statements)
+	r.Resolve(stmt.Statements)
 	r.endScope()
 }
 
@@ -212,7 +212,7 @@ func (r *Resolver) resolveFunction(stmt *lang.FunDeclStmt, newScope functionScop
 		r.declare(param)
 		r.define(param)
 	}
-	r.resolve(stmt.Body)
+	r.Resolve(stmt.Body)
 	r.endScope()
 
 	r.currentFunctionScope = enclosingFunctionScope
@@ -278,7 +278,7 @@ func (r *Resolver) resolveGroupingExpr(expr *lang.GroupingExpr) {
 }
 
 // resolveGroupingExpr resolves variables in a call expression.
-// There is no need to resolve the body of the function at call time.
+// There is no need to Resolve the body of the function at call time.
 func (r *Resolver) resolveCallExpr(expr *lang.CallExpr) {
 
 	r.resolveExpr(expr.Callee)
@@ -363,7 +363,9 @@ func (r *Resolver) resolveAssignExpr(expr *lang.AssignExpr) {
 	r.resolveLocal(expr, expr.Name)
 }
 
+// ------------------
 // Helper functions
+// ------------------
 
 // beginScope starts a new scope for variable references.
 func (r *Resolver) beginScope() {
@@ -412,7 +414,7 @@ func (r *Resolver) resolveLocal(expr lang.Expr, name *lang.Token) {
 
 	for i := r.scopes.size() - 1; i >= 0; i-- {
 		if _, ok := r.scopes.get(i)[name.Lexeme]; ok {
-			r.interp.resolve(expr, r.scopes.size()-1-i)
+			r.interp.Resolve(expr, r.scopes.size()-1-i)
 			return
 		}
 	}
@@ -432,6 +434,10 @@ func (r *Resolver) reportError(token *lang.Token, msg string) {
 		token.Line, where, msg)
 	r.hadError = true
 }
+
+// --------------------------------------
+// Data Structures internal to Resolver
+// --------------------------------------
 
 // scope represents an interpreter scope.
 type scope map[string]bool
@@ -480,6 +486,10 @@ func (s *scopeStack) get(index int) scope {
 
 	return s.stack[index]
 }
+
+// ------------------------------
+// Enum values used by Resolver
+// ------------------------------
 
 // functionScope keeps track if the current scope is a function or
 // a method.

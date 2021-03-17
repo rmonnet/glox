@@ -51,20 +51,11 @@ func (e *env) get(name *lang.Token) interface{} {
 // in a given enclosing environment. The environment where
 // the variable is defined is specified by the distance from
 // the current environment.
+// There is no error handling because resolver ensure the name
+// is in the environment at the proper distance.
 func (e *env) getAt(distance int, name string) interface{} {
 
 	return e.ancestor(distance).values[name]
-}
-
-// ancestor return the enclosing environment "distance"
-// levels up from the current environment.
-func (e *env) ancestor(distance int) *env {
-
-	environment := e
-	for i := 0; i < distance; i++ {
-		environment = environment.enclosing
-	}
-	return environment
 }
 
 // assign binds a new value with an existing variable.
@@ -88,10 +79,31 @@ func (e *env) assign(name *lang.Token, value interface{}) {
 // assignAt binds a new value with an existing variable,
 // looking for the variable in the enclosing environment
 // "distance" levels up from the current environment.
-func (e *env) assignAt(distance int, name *lang.Token, value interface{}) {
+// There is no error handling because resolver ensure the name
+// is in the environment at the proper distance.
+func (e *env) assignAt(distance int, name string, value interface{}) {
 
-	e.ancestor(distance).values[name.Lexeme] = value
+	e.ancestor(distance).values[name] = value
 }
+
+// ------------------
+// Helper Functions
+// ------------------
+
+// ancestor return the enclosing environment "distance"
+// levels up from the current environment.
+func (e *env) ancestor(distance int) *env {
+
+	environment := e
+	for i := 0; i < distance; i++ {
+		environment = environment.enclosing
+	}
+	return environment
+}
+
+// -----------------
+// Debug Functions
+// -----------------
 
 // dump print the environment content and enclosing environments
 // in the format "distance from current env) key=value".

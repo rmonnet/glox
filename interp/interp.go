@@ -68,7 +68,7 @@ func (i *Interp) Run(script string, parseOnly bool) {
 
 	resolver := NewResolver(i)
 	resolver.RedirectErrors(i.errOut)
-	resolver.resolve(statements)
+	resolver.Resolve(statements)
 
 	if resolver.hadError {
 		i.hadCompileError = true
@@ -391,7 +391,7 @@ func (i *Interp) evaluateUnary(expr *lang.UnaryExpr) interface{} {
 	}
 }
 
-// evaluateBinary evaluates a Binary expresion and returns the
+// evaluateBinary evaluates a Binary expression and returns the
 // result as a literal.
 func (i *Interp) evaluateBinary(expr *lang.BinaryExpr) interface{} {
 
@@ -676,10 +676,10 @@ func (i *loxInstance) String() string {
 // Helper functions
 // ------------------
 
-// resolve keep track of which environment the expression
+// Resolve keep track of which environment the expression
 // is defined in.
 // It is called by the Resolver static analyzer.
-func (i *Interp) resolve(expr lang.Expr, depth int) {
+func (i *Interp) Resolve(expr lang.Expr, depth int) {
 
 	i.locals[expr] = depth
 }
@@ -687,7 +687,7 @@ func (i *Interp) resolve(expr lang.Expr, depth int) {
 // lookupVariable looks up the specific variable in the
 // environment using lexical scoping.
 // The specific environment level to select was specified
-// by the static analyzer using the resolve method.
+// by the static analyzer using the Resolve method.
 func (i *Interp) lookupVariable(name *lang.Token, expr lang.Expr) interface{} {
 
 	if distance, ok := i.locals[expr]; ok {
@@ -699,11 +699,11 @@ func (i *Interp) lookupVariable(name *lang.Token, expr lang.Expr) interface{} {
 // assignVariable assign the specified value to the variable
 // in the environment using lexical scoping.
 // The specific environment level to select was specified
-// by the static analyzer using the resolve method.
+// by the static analyzer using the Resolve method.
 func (i *Interp) assignVariable(expr *lang.AssignExpr, value interface{}) {
 
 	if distance, ok := i.locals[expr]; ok {
-		i.env.assignAt(distance, expr.Name, value)
+		i.env.assignAt(distance, expr.Name.Lexeme, value)
 	} else {
 		i.globalEnv.assign(expr.Name, value)
 	}
