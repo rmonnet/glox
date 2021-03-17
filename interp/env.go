@@ -2,6 +2,7 @@ package interp
 
 import (
 	"fmt"
+	"strings"
 
 	"gitlab.com/rcmonnet/glox/lang"
 )
@@ -81,7 +82,7 @@ func (e *env) assign(name *lang.Token, value interface{}) {
 	}
 
 	panic(runtimeError{name,
-		"undefined variable '" + name.Lexeme + "'"})
+		"Undefined variable '" + name.Lexeme + "'."})
 }
 
 // assignAt binds a new value with an existing variable,
@@ -95,14 +96,16 @@ func (e *env) assignAt(distance int, name *lang.Token, value interface{}) {
 // dump print the environment content and enclosing environments
 // in the format "distance from current env) key=value".
 // It is useful for debugging.
-func (e *env) dump(distance int) {
+func (e *env) dump(distance int) string {
 
+	b := strings.Builder{}
 	for k, v := range e.values {
-		fmt.Printf("%d) %s=%s\n", distance, k, v)
+		fmt.Fprintf(&b, "%d) %s=%v\n", distance, k, v)
 	}
 	if e.enclosing != nil {
-		e.enclosing.dump(distance + 1)
+		fmt.Fprint(&b, e.enclosing.dump(distance+1))
 	}
+	return b.String()
 }
 
 // depth returns how many levels down the current environment is

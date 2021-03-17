@@ -43,7 +43,7 @@ func New(out, errOut io.Writer) *Interp {
 }
 
 // Run runs the lox interpreter on the provided program.
-func (i *Interp) Run(script string) {
+func (i *Interp) Run(script string, parseOnly bool) {
 
 	scanner := &lang.Scanner{}
 	scanner.RedirectErrors(i.errOut)
@@ -55,6 +55,14 @@ func (i *Interp) Run(script string) {
 
 	if scanner.HadError() || parser.HadError() {
 		i.hadCompileError = true
+		return
+	}
+
+	if parseOnly {
+		for _, statement := range statements {
+			fmt.Fprint(i.out, statement.PrettyPrint("\n", "  "))
+		}
+		fmt.Println("")
 		return
 	}
 
@@ -109,7 +117,7 @@ func (i *Interp) interpret(statements []lang.Stmt) {
 	defer func() {
 		if e := recover(); e != nil {
 			rte := e.(runtimeError)
-			fmt.Printf("%s\n[line %d]\n", rte.message, rte.token.Line)
+			fmt.Printf("[line %d] %s\n", rte.token.Line, rte.message)
 			i.hadRuntimeError = true
 		}
 	}()

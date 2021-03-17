@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -22,19 +23,23 @@ const (
 //   - error if more than one argument is passed
 func main() {
 
-	if len(os.Args) > 2 {
-		fmt.Println("Usage glox [script]")
+	parseOnly := flag.Bool("parseOnly", false, "parse and dump the AST")
+	flag.Parse()
+	args := flag.Args()
+
+	if len(args) > 1 {
+		fmt.Println("Usage glox [-parseOnly] [script]")
 		os.Exit(exUsage)
-	} else if len(os.Args) == 2 {
-		runFile(os.Args[1])
+	} else if len(args) == 1 {
+		runFile(args[0], *parseOnly)
 	} else {
-		runPrompt()
+		runPrompt(*parseOnly)
 	}
 }
 
 // runFile runs the lox interpreter on the
 // script in the file
-func runFile(filename string) {
+func runFile(filename string, parseOnly bool) {
 
 	script, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -42,7 +47,7 @@ func runFile(filename string) {
 		os.Exit(exDataErr)
 	}
 	interp := interp.New(os.Stdout, os.Stderr)
-	interp.Run(string(script))
+	interp.Run(string(script), parseOnly)
 	if interp.HadCompileError() {
 		os.Exit(exDataErr)
 	}
@@ -52,7 +57,7 @@ func runFile(filename string) {
 }
 
 // runPrompt runs the lox interpreter interactively
-func runPrompt() {
+func runPrompt(parseOnly bool) {
 
 	scanner := bufio.NewScanner(os.Stdin)
 	interp := interp.New(os.Stdout, os.Stderr)
@@ -62,7 +67,7 @@ func runPrompt() {
 			fmt.Println("")
 			break
 		}
-		interp.Run(scanner.Text())
+		interp.Run(scanner.Text(), parseOnly)
 	}
 
 	if err := scanner.Err(); err != nil {

@@ -148,6 +148,22 @@ func TestDepth(t *testing.T) {
 	}
 }
 
+func TestDump(t *testing.T) {
+
+	env := newEnv(nil)
+	env.define("pi", 3.14)
+	env = newEnv(env)
+	env.define("name", "Bob")
+	env = newEnv(env)
+	env.define("level", 3)
+
+	expect := "0) level=3\n1) name=Bob\n2) pi=3.14\n"
+	got := env.dump(0)
+	if expect != got {
+		t.Errorf("Expected %s but got %s", expect, got)
+	}
+}
+
 // ------------------
 // Helper functions
 // ------------------

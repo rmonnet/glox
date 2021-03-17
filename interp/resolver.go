@@ -99,7 +99,7 @@ func (r *Resolver) resolveReturnStmt(stmt *lang.ReturnStmt) {
 	if r.currentFunctionScope == inInitializer &&
 		stmt.Value != nil {
 		r.reportError(stmt.Keyword,
-			"Can't return a value from an initializer")
+			"Can't return a value from an initializer.")
 	}
 
 	if stmt.Value != nil {
@@ -321,7 +321,7 @@ func (r *Resolver) resolveVarExpr(expr *lang.VarExpr) {
 		isInitialized, isDefined := r.scopes.peek()[expr.Name.Lexeme]
 		if isDefined && !isInitialized {
 			r.reportError(expr.Name,
-				"Can't read local variable in its own initializer")
+				"Can't read local variable in its own initializer.")
 		}
 	}
 
@@ -334,7 +334,7 @@ func (r *Resolver) resolveThisExpr(expr *lang.ThisExpr) {
 
 	if r.currentClassScope == outsideClass {
 		r.reportError(expr.Keyword,
-			"can't use 'this' outside of a class.")
+			"Can't use 'this' outside of a class.")
 	}
 	r.resolveLocal(expr, expr.Keyword)
 }

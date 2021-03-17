@@ -12,7 +12,7 @@ type clock struct{}
 
 // call implements a call to the clock() function.
 func (c clock) call(i *Interp, args []interface{}) interface{} {
-	return time.Now().Unix()
+	return float64(time.Now().Unix())
 }
 
 // arity returns the arity of the clock() function.
@@ -22,5 +22,5 @@ func (c clock) arity() int {
 
 // string provides a printable representation of the clock() function.
 func (c clock) String() string {
-	return "<native fn>"
+	return "<native fun>"
 }

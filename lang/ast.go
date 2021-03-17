@@ -9,8 +9,13 @@ import (
 // Statements
 // ------------
 
+type PrettyPrinter interface {
+	PrettyPrint(pad, tab string) string
+}
+
 // Stmt represents a statement in lox AST.
 type Stmt interface {
+	PrettyPrinter
 	fmt.Stringer
 	stmtNode()
 }
@@ -22,10 +27,22 @@ type BlockStmt struct {
 
 func (*BlockStmt) stmtNode() {}
 
+func (stmt *BlockStmt) PrettyPrint(pad, tab string) string {
+
+	b := strings.Builder{}
+	fmt.Fprintf(&b, "%s(block", pad)
+	newPad := pad + tab
+	for _, stmt := range stmt.Statements {
+		fmt.Fprintf(&b, "%s", stmt.PrettyPrint(newPad, tab))
+	}
+	fmt.Fprint(&b, ")")
+	return b.String()
+}
+
 func (stmt *BlockStmt) String() string {
 
 	b := strings.Builder{}
-	fmt.Fprint(&b, "(block")
+	fmt.Fprintf(&b, "(block")
 	for _, stmt := range stmt.Statements {
 		fmt.Fprintf(&b, " %s", stmt.String())
 	}
@@ -41,6 +58,23 @@ type ClassDeclStmt struct {
 }
 
 func (*ClassDeclStmt) stmtNode() {}
+
+func (stmt *ClassDeclStmt) PrettyPrint(pad, tab string) string {
+
+	b := strings.Builder{}
+	if stmt.Superclass != nil {
+		fmt.Fprintf(&b, "%s(class %s %s", pad, stmt.Name.Lexeme,
+			stmt.Superclass.Name.Lexeme)
+	} else {
+		fmt.Fprintf(&b, "%s(class %s nil", pad, stmt.Name.Lexeme)
+	}
+	newPad := pad + tab
+	for _, method := range stmt.Methods {
+		fmt.Fprintf(&b, "%s", method.PrettyPrint(newPad, tab))
+	}
+	fmt.Fprint(&b, ")")
+	return b.String()
+}
 
 func (stmt *ClassDeclStmt) String() string {
 
@@ -65,9 +99,15 @@ type ExprStmt struct {
 
 func (*ExprStmt) stmtNode() {}
 
+func (stmt *ExprStmt) PrettyPrint(pad, tab string) string {
+
+	return fmt.Sprintf("%s%s", pad, stmt.Expression.String())
+}
+
 func (stmt *ExprStmt) String() string {
 
 	return stmt.Expression.String()
+
 }
 
 // FunDeclStmt represents a function definition in lox AST.
@@ -78,6 +118,23 @@ type FunDeclStmt struct {
 }
 
 func (*FunDeclStmt) stmtNode() {}
+
+func (stmt *FunDeclStmt) PrettyPrint(pad, tab string) string {
+
+	b := strings.Builder{}
+	fmt.Fprintf(&b, "%s(fun %s (params", pad, stmt.Name.Lexeme)
+	for _, param := range stmt.Params {
+		fmt.Fprintf(&b, " %s", param.Lexeme)
+	}
+	fmt.Fprint(&b, ")")
+	newPad := pad + tab
+	for _, statement := range stmt.Body {
+		fmt.Fprintf(&b, "%s", statement.PrettyPrint(newPad, tab))
+	}
+	fmt.Fprint(&b, ")")
+
+	return b.String()
+}
 
 func (stmt *FunDeclStmt) String() string {
 
@@ -92,7 +149,6 @@ func (stmt *FunDeclStmt) String() string {
 	}
 	fmt.Fprint(&b, ")")
 	return b.String()
-
 }
 
 // IfStmt represents an if statement in lox AST.
@@ -103,6 +159,20 @@ type IfStmt struct {
 }
 
 func (*IfStmt) stmtNode() {}
+
+func (stmt *IfStmt) PrettyPrint(pad, tab string) string {
+
+	b := strings.Builder{}
+	newPad := pad + tab
+	fmt.Fprintf(&b, "%s(if %s%s", pad, stmt.Condition.String(),
+		stmt.ThenBranch.PrettyPrint(newPad, tab))
+	if stmt.ElseBranch != nil {
+		fmt.Fprintf(&b, "%s", stmt.ElseBranch.PrettyPrint(newPad, tab))
+	}
+	fmt.Fprint(&b, ")")
+
+	return b.String()
+}
 
 func (stmt *IfStmt) String() string {
 
@@ -123,6 +193,11 @@ type PrintStmt struct {
 
 func (*PrintStmt) stmtNode() {}
 
+func (stmt *PrintStmt) PrettyPrint(pad, tab string) string {
+
+	return fmt.Sprintf("%s(print %s)", pad, stmt.Expression.String())
+}
+
 func (stmt *PrintStmt) String() string {
 
 	return fmt.Sprintf("(print %s)", stmt.Expression.String())
@@ -136,12 +211,21 @@ type ReturnStmt struct {
 
 func (*ReturnStmt) stmtNode() {}
 
+func (stmt *ReturnStmt) PrettyPrint(pad, tab string) string {
+
+	if stmt.Value != nil {
+		return fmt.Sprintf("%s(return %s)", pad, stmt.Value.String())
+	} else {
+		return fmt.Sprintf("%s(return)", pad)
+	}
+}
+
 func (stmt *ReturnStmt) String() string {
 
 	if stmt.Value != nil {
 		return fmt.Sprintf("(return %s)", stmt.Value.String())
 	} else {
-		return fmt.Sprint("(return)")
+		return fmt.Sprintf("(return)")
 	}
 }
 
@@ -152,6 +236,16 @@ type VarDeclStmt struct {
 }
 
 func (*VarDeclStmt) stmtNode() {}
+
+func (stmt *VarDeclStmt) PrettyPrint(pad, tab string) string {
+
+	if stmt.Initializer != nil {
+		return fmt.Sprintf("%s(var %s %s)", pad, stmt.Name.Lexeme,
+			stmt.Initializer.String())
+	} else {
+		return fmt.Sprintf("%s(var %s)", pad, stmt.Name.Lexeme)
+	}
+}
 
 func (stmt *VarDeclStmt) String() string {
 
@@ -171,10 +265,16 @@ type WhileStmt struct {
 
 func (*WhileStmt) stmtNode() {}
 
+func (stmt *WhileStmt) PrettyPrint(pad, tab string) string {
+
+	return fmt.Sprintf("%s(while %s%s)", pad,
+		stmt.Condition.String(), stmt.Body.PrettyPrint(pad+tab, tab))
+}
+
 func (stmt *WhileStmt) String() string {
 
-	return fmt.Sprintf("(while %s %s)", stmt.Condition.String(),
-		stmt.Body.String())
+	return fmt.Sprintf("(while %s %s)",
+		stmt.Condition.String(), stmt.Body.String())
 }
 
 // -------------

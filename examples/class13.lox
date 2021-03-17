@@ -1,0 +1,24 @@
+
+class Saxophone {
+    play() {
+        print "Careless Whisper";
+    }
+}
+
+class GolfClub {
+    play() {
+        print "Fore!";
+    }
+}
+
+fun playIt(thing) {
+    thing.play();
+}
+
+var sax = Saxophone();
+var cart = GolfClub();
+
+sax.play();
+cart.play();
+playIt(sax);
+playIt(cart);

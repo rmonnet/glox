@@ -1,6 +1,7 @@
 package lang
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -245,6 +246,112 @@ func TestExpr(t *testing.T) {
 	})
 }
 
+func TestCompilerErrors(t *testing.T) {
+
+	t.Run("missing ;", func(t *testing.T) {
+		script := `print i`
+		errMsg := "[line 1] Error at end: Expect ';' after value.\n"
+		expectError(t, errMsg, script)
+	})
+
+	t.Run("invalid assignment target", func(t *testing.T) {
+		script := `"name" = "Bob";`
+		errMsg := "[line 1] Error at '=': Invalid assignment target.\n"
+		expectError(t, errMsg, script)
+	})
+
+	t.Run("expect expression (synch advance)", func(t *testing.T) {
+		script := `
+			var a;
+			fun echo(n) { print n;}}
+			a = 1;
+			fun add(a, b) { return a + b;}`
+		errMsg := "[line 3] Error at '}': Expect expression.\n"
+		expectError(t, errMsg, script)
+	})
+
+	t.Run("expect expression (sync return)", func(t *testing.T) {
+		script := `
+			var a;
+			fun echo(n) { print n;}}
+			fun add(a, b) { return a + b;}`
+		errMsg := "[line 3] Error at '}': Expect expression.\n"
+		expectError(t, errMsg, script)
+	})
+
+}
+
+func TestAstPrettyPrint(t *testing.T) {
+
+	script := `
+		fun isPositive(n) {
+			var res;
+			if (n > 0) {
+				res = true;
+			} else {
+				res = false;
+			}
+			return res;
+		}
+	    fun countTo(n) {
+	    	var i = 0;
+	    	while (true) {
+				print i;
+				i = i + 1;
+				if (i > n) return;
+			}
+		}
+		class Boat {
+			init(name) {
+				this.name = name;
+			}
+			sailTo(port) {
+				print this.name + " is sailing to " + port;
+			}
+		}
+		class SpeedBoat < Boat {}
+		print isPositive(20);
+		var myBoat = Boat("Never Mind");
+		myBoat.sailTo("Lisboa");`
+
+	expect := "\n(block\n" +
+		"  (fun isPositive (params n)\n" +
+		"    (var res)\n" +
+		"    (if (> (n) 0)\n" +
+		"      (block\n" +
+		"        (assign res true))\n" +
+		"      (block\n" +
+		"        (assign res false)))\n" +
+		"    (return (res)))\n" +
+		"  (fun countTo (params n)\n" +
+		"    (var i 0)\n" +
+		"    (while true\n" +
+		"      (block\n" +
+		"        (print (i))\n" +
+		"        (assign i (+ (i) 1))\n" +
+		"        (if (> (i) (n))\n" +
+		"          (return)))))\n" +
+		"  (class Boat nil\n" +
+		"    (fun init (params name)\n" +
+		"      (set (this) name (name)))\n" +
+		"    (fun sailTo (params port)\n" +
+		"      (print (+ (+ (get (this) name) \" is sailing to \") (port)))))\n" +
+		"  (class SpeedBoat Boat)\n" +
+		"  (print (call (isPositive) (args 20)))\n" +
+		"  (var myBoat (call (Boat) (args \"Never Mind\")))\n" +
+		"  (call (get (myBoat) sailTo) (args \"Lisboa\")))"
+
+	scanner := &Scanner{}
+	tokens := scanner.ScanTokens(script)
+	parser := &Parser{}
+	program := &BlockStmt{parser.Parse(tokens)}
+	got := program.PrettyPrint("\n", "  ")
+	if expect != got {
+		t.Errorf("Expected '%s' but got '%s'", expect, got)
+	}
+
+}
+
 // ------------------
 // Helper functions
 // ------------------
@@ -283,5 +390,27 @@ func matchAST(t *testing.T, expect []string, script string) {
 			t.Errorf("Expected statement\n'%s'\nbut got\n'%s'\nin %dth position",
 				expect[i], got[i], i+1)
 		}
+	}
+}
+
+func expectError(t *testing.T, errMsg string, script string) {
+
+	t.Helper()
+
+	b := &strings.Builder{}
+	scanner := &Scanner{}
+	scanner.RedirectErrors(b)
+	tokens := scanner.ScanTokens(script)
+	parser := &Parser{}
+	parser.RedirectErrors(b)
+	parser.Parse(tokens)
+
+	if !parser.HadError() {
+		t.Errorf("Expected Error '%s' but got none", errMsg)
+	}
+
+	got := b.String()
+	if got != errMsg {
+		t.Errorf("Expected Error '%s' but got '%s'", errMsg, got)
 	}
 }
