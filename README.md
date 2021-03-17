@@ -35,7 +35,7 @@ described in the [crafting interpreters](https://craftinginterpreters.com) are:
 
 # Installation
 
-You can install the lox interpreter using `go get gitlab.com/rcmonnet/glox`.
+You can install the lox interpreter using `go get github.com/rmonnet/glox`.
 
 # Example
 
@@ -47,9 +47,9 @@ mostly taken from the original text.
 You can also install the source code on your machine by typing:
 
 ```
-git clone gitlab.com/rcmonnet/glox`
+git clone github.com/rmonnet/glox`
 cd glox
-go install gitlab.com/rcmonnet/glox
+go install github.com/rmonnet/glox
 ```
 
 # FAQ

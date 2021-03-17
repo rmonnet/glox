@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"gitlab.com/rcmonnet/glox/interp"
+	"github.com/rmonnet/glox/interp"
 )
 
 const (

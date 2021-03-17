@@ -3,7 +3,7 @@ package interp
 import (
 	"testing"
 
-	"gitlab.com/rcmonnet/glox/lang"
+	"github.com/rmonnet/glox/lang"
 )
 
 func TestDefineAndGet(t *testing.T) {

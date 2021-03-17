@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	"gitlab.com/rcmonnet/glox/lang"
+	"github.com/rmonnet/glox/lang"
 )
 
 // Interp represents the state of the lox interpreter.

@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"gitlab.com/rcmonnet/glox/lang"
+	"github.com/rmonnet/glox/lang"
 )
 
 // The Resolver type provides operations to Resolve variables in

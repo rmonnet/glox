@@ -1,3 +1,3 @@
-module gitlab.com/rcmonnet/glox
+module github.com/rmonnet/glox
 
 go 1.15

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gitlab.com/rcmonnet/glox/lang"
+	"github.com/rmonnet/glox/lang"
 )
 
 // Env represents the interpreter state.
