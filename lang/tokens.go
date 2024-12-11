@@ -9,6 +9,13 @@ import (
 	"strings"
 )
 
+// Token represents a lox token.
+type Token struct {
+	Type   TokenType
+	Lexeme string
+	Line   int
+}
+
 // TokenType represents the type of a lox token.
 type TokenType int
 
@@ -178,13 +185,6 @@ func (t TokenType) String() string {
 	default:
 		return "invalid-token"
 	}
-}
-
-// Token represents a lox token.
-type Token struct {
-	Type   TokenType
-	Lexeme string
-	Line   int
 }
 
 // String returns the string representation of a Token.
